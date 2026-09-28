@@ -84,7 +84,7 @@ function changePage(page) {
   document.querySelector('.actions').classList.toggle('hidden', reportMode);
   document.querySelectorAll('.page-choice').forEach(button => button.classList.toggle('active', button.dataset.page === page));
   if (reportMode) {
-    document.querySelector('.titlebar strong').textContent = 'Báo cáo thẻ kho chi tiết';
+    document.querySelector('.titlebar strong').textContent = 'Báo cáo nhập xuất tồn (Gia công)';
     return;
   }
   const config = pagePresets[page];
@@ -112,21 +112,79 @@ document.querySelector('#stockReportForm').addEventListener('submit', event => {
   }
   const category = form.get('goodsCategory');
   const warehouse = form.get('warehouse');
-  const reportType = form.get('reportType');
   const contract = form.get('contract');
   const displayDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN') : '';
-  document.querySelector('#paperFormCode').textContent = `Mẫu số ${reportType}`;
   document.querySelector('#paperFrom').textContent = displayDate(from);
   document.querySelector('#paperTo').textContent = displayDate(to);
   document.querySelector('#paperWarehouseName').textContent = warehouse;
   document.querySelector('#paperWarehouseCode').textContent = warehouse === 'Kho thành phẩm' ? 'KHO-TP' : warehouse === 'Kho nguyên liệu' ? 'KHO-NL' : 'KHO-PL';
-  document.querySelector('.contract-row strong').textContent = `Số hợp đồng: ${contract}`;
+  document.querySelector('#paperContract').textContent = contract;
+  const item = form.get('item')?.trim();
+  document.querySelector('#paperFormCode').textContent = `Báo cáo nhập xuất tồn · ${category}${item ? ` · ${item}` : ''}`;
+  if (form.get('foreignCurrency')) notify('Bản xem trước đang hiển thị trị giá minh họa; chưa quy đổi theo tỷ giá ngoại tệ.');
   document.querySelector('#reportResults').classList.remove('hidden');
+  document.querySelector('#stockReportPage').classList.add('is-viewing-report');
 });
 
 document.querySelector('#closeReport').addEventListener('click', () => {
   document.querySelector('#reportResults').classList.add('hidden');
+  document.querySelector('#stockReportPage').classList.remove('is-viewing-report');
   changePage(document.querySelector('.page').dataset.documentType || 'in');
+});
+
+document.querySelector('#printInventory').addEventListener('click', () => window.print());
+document.querySelector('#firstReportPage').disabled = true;
+document.querySelector('#previousReportPage').disabled = true;
+document.querySelector('#nextReportPage').disabled = true;
+document.querySelector('#lastReportPage').disabled = true;
+document.querySelector('#focusReportSearch').addEventListener('click', () => document.querySelector('#inventorySearch').focus());
+document.querySelector('#closeReportViewer').addEventListener('click', () => {
+  document.querySelector('#reportResults').classList.add('hidden');
+  document.querySelector('#stockReportPage').classList.remove('is-viewing-report');
+});
+document.querySelector('#refreshInventory').addEventListener('click', () => {
+  document.querySelector('#inventorySearch').value = '';
+  document.querySelector('#reportZoom').value = '100';
+  document.querySelector('.report-paper').style.zoom = '1';
+  document.querySelectorAll('.inventory-table .inventory-ledger tbody tr').forEach(row => { row.hidden = false; });
+  notify('Báo cáo đã được làm mới.');
+});
+document.querySelector('#editReportFilters').addEventListener('click', () => {
+  document.querySelector('#stockReportPage').classList.remove('is-viewing-report');
+  document.querySelector('#reportResults').classList.add('hidden');
+  document.querySelector('#stockReportForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.querySelector('#inventorySearch').addEventListener('input', event => {
+  const query = event.target.value.trim().toLocaleLowerCase('vi');
+  document.querySelectorAll('.inventory-table .inventory-ledger tbody tr').forEach(row => {
+    row.hidden = Boolean(query) && !row.textContent.toLocaleLowerCase('vi').includes(query);
+  });
+});
+document.querySelector('#reportZoom').addEventListener('change', event => {
+  document.querySelector('.report-paper').style.zoom = `${Number(event.target.value) / 100}`;
+});
+document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
+  const table = document.querySelector('.inventory-table .inventory-ledger');
+  const subheaders = [...table.tHead.rows[1].cells];
+  let subheaderIndex = 0;
+  const headers = [...table.tHead.rows[0].cells].flatMap(cell => {
+    const count = Number(cell.colSpan) || 1;
+    if (count === 1) return [cell.innerText.trim()];
+    const parent = cell.innerText.trim();
+    return Array.from({ length: count }, () => `${parent} - ${subheaders[subheaderIndex++].innerText.trim()}`);
+  });
+  const quote = value => `"${String(value).replaceAll('"', '""').replaceAll('\n', ' ').trim()}"`;
+  const rows = [headers.map(quote).join(',')];
+  [...table.tBodies[0].rows].forEach(row => {
+    const values = [...row.cells].flatMap(cell => [cell.innerText.trim(), ...Array(Math.max(0, cell.colSpan - 1)).fill('')]);
+    rows.push(values.map(quote).join(','));
+  });
+  const csv = `\uFEFF${rows.join('\r\n')}`;
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = 'bao-cao-tong-hop-ton-kho.csv';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 });
 
 tableBody.addEventListener('input', recalculate);
