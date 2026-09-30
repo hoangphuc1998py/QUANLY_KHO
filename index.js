@@ -76,6 +76,58 @@ function setOptions(select, labels, selected) {
   select.value = selected;
 }
 
+const currencySelect = document.querySelector('#currencyCode');
+const exchangeRateInput = document.querySelector('.document-box .rate');
+const currencyRatesDialog = document.querySelector('#currencyRatesDialog');
+const exchangeRates = { VND: '1' };
+try {
+  Object.assign(exchangeRates, JSON.parse(localStorage.getItem('quanlykho-exchange-rates') || '{}'));
+} catch { /* Start with the VND default if stored settings are unavailable. */ }
+
+function saveExchangeRates() {
+  try { localStorage.setItem('quanlykho-exchange-rates', JSON.stringify(exchangeRates)); }
+  catch { notify('Không thể lưu tỷ giá trên trình duyệt này.'); }
+}
+
+function loadSelectedCurrencyRate() {
+  const currency = currencySelect.value;
+  exchangeRateInput.value = exchangeRates[currency] ?? '';
+  exchangeRateInput.readOnly = currency === 'VND';
+}
+
+function populateExchangeRateTable() {
+  document.querySelectorAll('[data-currency-rate]').forEach(input => {
+    input.value = exchangeRates[input.dataset.currencyRate] || '';
+  });
+}
+
+currencySelect.addEventListener('change', loadSelectedCurrencyRate);
+exchangeRateInput.addEventListener('input', () => {
+  exchangeRates[currencySelect.value] = exchangeRateInput.value;
+  const tableInput = document.querySelector(`[data-currency-rate="${currencySelect.value}"]`);
+  if (tableInput) tableInput.value = exchangeRateInput.value;
+  saveExchangeRates();
+});
+document.querySelector('#openCurrencyRates').addEventListener('click', () => {
+  populateExchangeRateTable();
+  currencyRatesDialog.showModal();
+});
+document.querySelector('#closeCurrencyRates').addEventListener('click', () => currencyRatesDialog.close());
+document.querySelector('#cancelCurrencyRates').addEventListener('click', () => currencyRatesDialog.close());
+document.querySelector('#saveCurrencyRates').addEventListener('click', () => {
+  document.querySelectorAll('[data-currency-rate]').forEach(input => {
+    const value = input.value.trim();
+    if (value && Number(value) > 0) exchangeRates[input.dataset.currencyRate] = value;
+    else delete exchangeRates[input.dataset.currencyRate];
+  });
+  exchangeRates.VND = '1';
+  saveExchangeRates();
+  loadSelectedCurrencyRate();
+  currencyRatesDialog.close();
+  notify('Đã lưu bảng tỷ giá.');
+});
+loadSelectedCurrencyRate();
+
 function changePage(page) {
   const reportMode = page === 'report';
   document.querySelector('#stockReportPage').classList.toggle('hidden', !reportMode);
@@ -92,23 +144,43 @@ function changePage(page) {
   document.querySelector('.general-box .form-row span').innerHTML = `${config.receiver} <b>*</b>`;
   document.querySelector('.voucher').value = config.code;
   document.querySelector('#createVoucher').textContent = config.voucherAction;
-  const selects = document.querySelectorAll('.document-box select');
-  setOptions(selects[0], config.voucherType, page === 'out' ? 'Sản xuất' : 'Thành phẩm sản xuất');
-  setOptions(selects[1], config.goodsType, page === 'out' ? 'Sản phẩm' : 'Nguyên liệu');
+  setOptions(document.querySelector('#voucherType'), config.voucherType, page === 'out' ? 'Sản xuất' : 'Thành phẩm sản xuất');
+  setOptions(document.querySelector('#goodsType'), config.goodsType, page === 'out' ? 'Sản phẩm' : 'Nguyên liệu');
   document.querySelectorAll('#itemsTable thead th').forEach((header, index) => { header.textContent = config.headers[index]; });
   document.querySelector('.page').dataset.documentType = page;
 }
 
 document.querySelectorAll('.page-choice').forEach(button => button.addEventListener('click', () => changePage(button.dataset.page)));
 
-document.querySelector('#stockReportForm').addEventListener('submit', event => {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+const warehouseNames = {
+  'KHO TONG CONG CTY': 'KHO TONG CONG TY',
+  'KHO AN HUNG': 'KHO NPL XI NGHIEP AN HUNG',
+  'KHO AN THINH': 'KHO NPL XI NGHIEP AN THINH',
+  'KHO AN PHU': 'KHO NPL XI NGHIEP AN PHU',
+  'KHO AN PHAT': 'KHO NPL XI NGHIEP AN PHAT',
+  'KHO VESTON': 'KHO NPL XI NGHIEP VESTON'
+};
+document.querySelector('#warehousePicker').addEventListener('change', event => {
+  const code = event.target.value;
+  if (!code) return;
+  document.querySelector('#warehouseName').value = warehouseNames[code];
+});
+document.querySelector('#senderPicker').addEventListener('change', event => {
+  if (event.target.value) document.querySelector('#senderName').value = event.target.value;
+});
+
+function activeReportTable() {
+  return document.querySelector('#reportResults.detail-view .paper-table-wrap:not(.inventory-table) table')
+    || document.querySelector('.inventory-table .inventory-ledger');
+}
+
+function showInventoryReport(detail = false) {
+  const form = new FormData(document.querySelector('#stockReportForm'));
   const from = form.get('fromDate');
   const to = form.get('toDate');
   if (from && to && from > to) {
     notify('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.');
-    return;
+    return false;
   }
   const category = form.get('goodsCategory');
   const warehouse = form.get('warehouse');
@@ -120,14 +192,27 @@ document.querySelector('#stockReportForm').addEventListener('submit', event => {
   document.querySelector('#paperWarehouseCode').textContent = warehouse === 'Kho thành phẩm' ? 'KHO-TP' : warehouse === 'Kho nguyên liệu' ? 'KHO-NL' : 'KHO-PL';
   document.querySelector('#paperContract').textContent = contract;
   const item = form.get('item')?.trim();
-  document.querySelector('#paperFormCode').textContent = `Báo cáo nhập xuất tồn · ${category}${item ? ` · ${item}` : ''}`;
+  const productCode = form.get('productCode')?.trim();
+  document.querySelector('#paperFormCode').textContent = `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${category}${item ? ` · ${item}` : ''}${productCode ? ` · Mã SP: ${productCode}` : ''}`;
+  document.querySelector('.paper-title').textContent = detail ? 'THẺ KHO CHI TIẾT' : 'BÁO CÁO NHẬP XUẤT TỒN';
+  document.querySelector('#reportResults').classList.toggle('detail-view', detail);
   if (form.get('foreignCurrency')) notify('Bản xem trước đang hiển thị trị giá minh họa; chưa quy đổi theo tỷ giá ngoại tệ.');
   document.querySelector('#reportResults').classList.remove('hidden');
   document.querySelector('#stockReportPage').classList.add('is-viewing-report');
+  document.querySelector('#inventorySearch').value = '';
+  activeReportTable().querySelectorAll('tbody tr').forEach(row => { row.hidden = false; });
+  return true;
+}
+
+document.querySelector('#stockReportForm').addEventListener('submit', event => {
+  event.preventDefault();
+  showInventoryReport(false);
 });
+document.querySelector('#detailReportBtn').addEventListener('click', () => showInventoryReport(true));
 
 document.querySelector('#closeReport').addEventListener('click', () => {
   document.querySelector('#reportResults').classList.add('hidden');
+  document.querySelector('#reportResults').classList.remove('detail-view');
   document.querySelector('#stockReportPage').classList.remove('is-viewing-report');
   changePage(document.querySelector('.page').dataset.documentType || 'in');
 });
@@ -140,13 +225,14 @@ document.querySelector('#lastReportPage').disabled = true;
 document.querySelector('#focusReportSearch').addEventListener('click', () => document.querySelector('#inventorySearch').focus());
 document.querySelector('#closeReportViewer').addEventListener('click', () => {
   document.querySelector('#reportResults').classList.add('hidden');
+  document.querySelector('#reportResults').classList.remove('detail-view');
   document.querySelector('#stockReportPage').classList.remove('is-viewing-report');
 });
 document.querySelector('#refreshInventory').addEventListener('click', () => {
   document.querySelector('#inventorySearch').value = '';
   document.querySelector('#reportZoom').value = '100';
   document.querySelector('.report-paper').style.zoom = '1';
-  document.querySelectorAll('.inventory-table .inventory-ledger tbody tr').forEach(row => { row.hidden = false; });
+  activeReportTable().querySelectorAll('tbody tr').forEach(row => { row.hidden = false; });
   notify('Báo cáo đã được làm mới.');
 });
 document.querySelector('#editReportFilters').addEventListener('click', () => {
@@ -156,7 +242,7 @@ document.querySelector('#editReportFilters').addEventListener('click', () => {
 });
 document.querySelector('#inventorySearch').addEventListener('input', event => {
   const query = event.target.value.trim().toLocaleLowerCase('vi');
-  document.querySelectorAll('.inventory-table .inventory-ledger tbody tr').forEach(row => {
+  activeReportTable().querySelectorAll('tbody tr').forEach(row => {
     row.hidden = Boolean(query) && !row.textContent.toLocaleLowerCase('vi').includes(query);
   });
 });
@@ -164,7 +250,7 @@ document.querySelector('#reportZoom').addEventListener('change', event => {
   document.querySelector('.report-paper').style.zoom = `${Number(event.target.value) / 100}`;
 });
 document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
-  const table = document.querySelector('.inventory-table .inventory-ledger');
+  const table = activeReportTable();
   const subheaders = [...table.tHead.rows[1].cells];
   let subheaderIndex = 0;
   const headers = [...table.tHead.rows[0].cells].flatMap(cell => {

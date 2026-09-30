@@ -16,34 +16,49 @@
       <div class="main-grid">
         <div class="left-column">
           <fieldset class="general-box"><legend>Thông tin chung</legend>
-            <label class="form-row"><span>Người giao hàng: <b>*</b></span><div class="input-group short"><input aria-label="Người giao hàng"><button class="drop" aria-label="Chọn người giao hàng">⌄</button><button class="ellipsis" aria-label="Tìm người giao hàng">...</button></div><input class="grow" aria-label="Tên người giao hàng"></label>
+            <label class="form-row"><span>Người giao hàng: <b>*</b></span><div class="input-group short"><input id="senderName" aria-label="Người giao hàng"><select id="senderPicker" class="sender-picker" aria-label="Chọn người giao hàng"><option value="">Chọn người giao hàng</option><option value="Misa (Misa Amis)">Misa (Misa Amis)</option><option value="WFX">WFX</option></select></div></label>
             <label class="form-row"><span>Địa chỉ:</span><input class="grow"></label>
             <label class="form-row"><span>Người vận chuyển:</span><input class="grow"></label>
             <label class="form-row"><span>Diễn giải:</span><input class="grow"></label>
-            <label class="form-row"><span>Mã kho:</span><div class="input-group warehouse"><input><button class="drop" aria-label="Chọn mã kho">⌄</button></div><input class="grow"></label>
+            <label class="form-row"><span>Mã kho:</span><div class="input-group warehouse"><select id="warehousePicker" class="warehouse-picker" aria-label="Chọn kho"><option value="">Chọn kho</option><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></div><input id="warehouseName" class="grow" aria-label="Tên kho"></label>
+            <label class="form-row"><span>Mã SP:</span><input id="productCode" class="grow" aria-label="Mã sản phẩm"></label>
           </fieldset>
           <fieldset class="declaration-box"><legend>Thông tin tờ khai</legend>
             <div class="declaration-grid">
               <span>Số tờ khai:</span><div class="input-group"><input><button class="ellipsis">...</button></div>
-              <span>Ngày tờ khai:</span><div class="input-group"><input type="date"><button class="drop">⌄</button></div>
+              <span>Ngày tờ khai:</span><div class="input-group"><input type="date"></div>
               <span>Số hợp đồng:</span><div class="input-group"><input value="HDGC2019-VN"><button class="ellipsis">...</button></div>
               <span>Số hóa đơn:</span><div class="input-group"><input><button class="ellipsis">...</button></div>
-              <span>Ngày hóa đơn:</span><div class="input-group"><input type="date"><button class="drop">⌄</button></div>
-              <span>Ngày hợp đồng:</span><div class="input-group"><input type="date" value="2019-10-13"><button class="drop">⌄</button></div>
+              <span>Ngày hóa đơn:</span><div class="input-group"><input type="date"></div>
+              <span>Ngày hợp đồng:</span><div class="input-group"><input type="date" value="2019-10-13"></div>
             </div>
           </fieldset>
         </div>
         <fieldset class="document-box"><legend>Thông tin chứng từ</legend>
           <label class="doc-row"><span>Trạng thái:</span><strong class="new-status">Nhập mới phiếu</strong></label>
           <label class="doc-row"><span>Số chứng từ: <b>*</b></span><input class="voucher" value="PN00002" readonly></label>
-          <label class="doc-row"><span>Ngày chứng từ: <b>*</b></span><div class="input-group"><input type="date" value="2019-12-13"><button class="drop">⌄</button></div></label>
+          <label class="doc-row"><span>Ngày chứng từ: <b>*</b></span><div class="input-group"><input type="date" value="2019-12-13"></div></label>
           <label class="doc-row"><span>Số chứng từ gốc:</span><input></label>
-          <label class="doc-row"><span>Ngày chứng từ gốc:</span><div class="input-group"><input type="date"><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Tỷ giá: <b>*</b></span><div class="input-group"><input class="rate" value="1"><button class="currency">VND</button><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Loại phiếu: <b>*</b></span><div class="input-group"><select><option>Thành phẩm sản xuất</option><option>Nhập mua hàng</option><option>Nhập khác</option></select><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Loại hàng: <b>*</b></span><div class="input-group"><select><option>Nguyên liệu</option><option>Thành phẩm</option><option>Công cụ dụng cụ</option></select><button class="drop">⌄</button></div></label>
+          <label class="doc-row"><span>Ngày chứng từ gốc:</span><div class="input-group"><input type="date"></div></label>
+          <label class="doc-row"><span>Tỷ giá: <b>*</b></span><div class="input-group"><input class="rate" type="number" min="0" step="any" value="1" aria-label="Tỷ giá"><select class="currency-select" id="currencyCode" aria-label="Loại tiền tệ"><option value="VND">VND</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="JPY">JPY</option><option value="CNY">CNY</option></select><button type="button" class="rate-table-button" id="openCurrencyRates" title="Bảng tỷ giá" aria-label="Mở bảng tỷ giá">▤</button></div></label>
+          <label class="doc-row"><span>Loại phiếu: <b>*</b></span><div class="input-group"><select id="voucherType"><option>Thành phẩm sản xuất</option><option>Nhập mua hàng</option><option>Nhập khác</option></select></div></label>
+          <label class="doc-row"><span>Loại hàng: <b>*</b></span><div class="input-group"><select id="goodsType"><option>Nguyên liệu</option><option>Thành phẩm</option><option>Công cụ dụng cụ</option></select></div></label>
           <label class="check-row"><input type="checkbox"> Phiếu tự cung ứng, không báo cáo HQ</label>
         </fieldset>
+        <dialog id="currencyRatesDialog" class="currency-rates-dialog" aria-labelledby="currencyRatesTitle">
+          <form method="dialog" id="currencyRatesForm">
+            <header><div><h2 id="currencyRatesTitle">Bảng tỷ giá</h2><p>Nhập số VND quy đổi cho 1 đơn vị ngoại tệ.</p></div><button type="button" class="dialog-x" id="closeCurrencyRates" aria-label="Đóng">×</button></header>
+            <div class="rates-table-wrap"><table class="rates-table"><thead><tr><th>Mã tiền</th><th>Tên tiền tệ</th><th>Tỷ giá (VND)</th></tr></thead><tbody>
+              <tr><td>VND</td><td>Việt Nam đồng</td><td><input type="number" value="1" readonly aria-label="Tỷ giá VND"></td></tr>
+              <tr><td>USD</td><td>Đô la Mỹ</td><td><input type="number" min="0" step="any" data-currency-rate="USD" placeholder="Nhập tỷ giá"></td></tr>
+              <tr><td>EUR</td><td>Euro</td><td><input type="number" min="0" step="any" data-currency-rate="EUR" placeholder="Nhập tỷ giá"></td></tr>
+              <tr><td>GBP</td><td>Bảng Anh</td><td><input type="number" min="0" step="any" data-currency-rate="GBP" placeholder="Nhập tỷ giá"></td></tr>
+              <tr><td>JPY</td><td>Yên Nhật</td><td><input type="number" min="0" step="any" data-currency-rate="JPY" placeholder="Nhập tỷ giá"></td></tr>
+              <tr><td>CNY</td><td>Nhân dân tệ</td><td><input type="number" min="0" step="any" data-currency-rate="CNY" placeholder="Nhập tỷ giá"></td></tr>
+            </tbody></table></div>
+            <footer><button type="button" class="rates-cancel" id="cancelCurrencyRates">Hủy</button><button type="button" class="rates-save" id="saveCurrencyRates">Lưu tỷ giá</button></footer>
+          </form>
+        </dialog>
       </div>
       <div class="other-page hidden" id="otherPage"><fieldset><legend>Thông tin khác</legend><label class="form-row"><span>Nhân viên mua hàng:</span><input class="grow"></label><label class="form-row"><span>Đối tượng:</span><input class="grow"></label><label class="form-row"><span>Ghi chú:</span><input class="grow"></label></fieldset></div>
       <section class="items-section">
@@ -67,10 +82,11 @@
           <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate" value="2019-07-11"></label>
           <label class="report-field"><span>Mã kho</span><select name="warehouse"><option>Kho thành phẩm</option><option>Kho nguyên liệu</option><option>Kho phụ liệu</option></select></label>
           <label class="report-field"><span>Hàng hóa</span><input type="text" name="item"></label>
+          <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
           <label class="report-field wide"><span>Hợp đồng gia công</span><select name="contract"><option>HD01/2019-TSD</option><option>HDGC2019-VN</option></select></label>
         </div></fieldset>
         <label class="report-currency"><input type="checkbox" name="foreignCurrency"> In trị giá theo tỉ giá nguyên tệ</label>
-        <div class="report-actions"><button type="submit" class="primary-action">⌕ Xem báo cáo</button><button type="button" class="secondary-action" id="closeReport">◉ Đóng</button></div>
+        <div class="report-actions"><button type="submit" class="primary-action">⌕ Xem báo cáo tổng hợp</button><button type="button" class="secondary-action" id="detailReportBtn">▤ Báo cáo chi tiết</button><button type="button" class="secondary-action" id="closeReport">◉ Đóng</button></div>
       </form>
       <section class="report-results hidden" id="reportResults">
         <div class="report-viewer-toolbar">
