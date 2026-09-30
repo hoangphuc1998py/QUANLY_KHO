@@ -33,22 +33,64 @@
             </div>
           </fieldset>
         </div>
-        <fieldset class="document-box"><legend>Thông tin chứng từ</legend>
-          <label class="doc-row"><span>Trạng thái:</span><strong class="new-status">Nhập mới phiếu</strong></label>
-          <label class="doc-row"><span>Số chứng từ: <b>*</b></span><input class="voucher" value="PN00002" readonly></label>
-          <label class="doc-row"><span>Ngày chứng từ: <b>*</b></span><div class="input-group"><input type="date" value="2019-12-13"><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Số chứng từ gốc:</span><input></label>
-          <label class="doc-row"><span>Ngày chứng từ gốc:</span><div class="input-group"><input type="date"><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Tỷ giá: <b>*</b></span><div class="input-group"><input class="rate" value="1"><button class="currency">VND</button><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Loại phiếu: <b>*</b></span><div class="input-group"><select><option>Thành phẩm sản xuất</option><option>Nhập mua hàng</option><option>Nhập khác</option></select><button class="drop">⌄</button></div></label>
-          <label class="doc-row"><span>Loại hàng: <b>*</b></span><div class="input-group"><select><option>Nguyên liệu</option><option>Thành phẩm</option><option>Công cụ dụng cụ</option></select><button class="drop">⌄</button></div></label>
-          <label class="check-row"><input type="checkbox"> Phiếu tự cung ứng, không báo cáo HQ</label>
-        </fieldset>
-      </div>
-      <div class="other-page hidden" id="otherPage"><fieldset><legend>Thông tin khác</legend><label class="form-row"><span>Nhân viên mua hàng:</span><input class="grow"></label><label class="form-row"><span>Đối tượng:</span><input class="grow"></label><label class="form-row"><span>Ghi chú:</span><input class="grow"></label></fieldset></div>
-      <section class="items-section">
-        <div class="grid-caption">Danh sách hàng (F5: Copy 1 dòng hàng - F6: Nhập hàng từ file Excel - F8: Xóa 1 dòng hàng - F9: Chọn hàng từ danh sách - F11: Xóa tất cả)</div>
-        <div class="table-wrap"><table id="itemsTable"><thead><tr><th class="icon-head">▧</th><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Mã hàng ECUS</th><th>Kho</th><th>TK Nợ</th><th>TK Có</th><th>Đơn vị tính</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead><tbody><tr class="item-row"><td class="row-marker">✳</td><td></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true" class="quantity"></td><td contenteditable="true" class="price"></td><td class="amount"></td></tr></tbody></table></div>
+        <div class="other-page hidden" id="otherPage">
+          <fieldset>
+            <legend>Thông tin khác</legend>
+            <label class="form-row"
+              ><span>Nhân viên mua hàng:</span><input class="grow" /></label
+            ><label class="form-row"
+              ><span>Đối tượng:</span><input class="grow" /></label
+            ><label class="form-row"
+              ><span>Ghi chú:</span><input class="grow"
+            /></label>
+          </fieldset>
+        </div>
+        <section class="items-section">
+          <div class="grid-caption">
+            Danh sách hàng (F5: Copy 1 dòng hàng - F6: Nhập hàng từ file Excel -
+            F8: Xóa 1 dòng hàng - F9: Chọn hàng từ danh sách - F11: Xóa tất cả)
+          </div>
+          <div class="table-wrap">
+            <table id="itemsTable">
+              <thead>
+                <tr>
+                  <th class="icon-head">▧</th>
+                  <th>STT</th>
+                  <th>Mã hàng</th>
+                  <th>Tên hàng</th>
+                  <th>Mã hàng ECUS</th>
+                  <th>Kho</th>
+                  <th>TK Nợ</th>
+                  <th>TK Có</th>
+                  <th>Đơn vị tính</th>
+                  <th>Số lượng</th>
+                  <th>Đơn giá</th>
+                  <th>Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="item-row">
+                  <td class="row-marker">✳</td>
+                  <td></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true"></td>
+                  <td contenteditable="true" class="quantity"></td>
+                  <td contenteditable="true" class="price"></td>
+                  <td class="amount"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <footer class="totals">
+          <span>Tổng lượng:</span><strong id="totalQty">0</strong
+          ><span>Tổng tiền hàng:</span><strong id="totalAmount">0</strong>
+        </footer>
       </section>
       <footer class="totals"><span>Tổng lượng:</span><strong id="totalQty">0</strong><span>Tổng tiền hàng:</span><strong id="totalAmount">0</strong></footer>
     </section>
@@ -137,10 +179,18 @@
           <footer class="paper-signatures"><div><strong>Người ghi sổ</strong><em>(Ký, họ tên)</em></div><div><strong>Kế toán trưởng</strong><em>(Ký, họ tên)</em></div><div><strong>Giám đốc</strong><em>(Ký, họ tên, đóng dấu)</em></div></footer>
         </article>
       </section>
-    </section>
-    <footer class="actions"><button class="soft" id="createVoucher">⟳ Tạo phiếu nhập kho gộp...</button><span class="spacer"></span><button id="copyRow">▤ Copy</button><button disabled>♟ In</button><button disabled>⊕ Thêm Mới</button><button id="searchBtn">⌕ Tìm CT...</button><button disabled>▣ Ghi</button><button disabled>☑ Ghi sổ</button><button disabled>× Xóa</button><button class="exit" id="exitBtn">⊠ Đóng</button></footer>
-    <div class="toast" id="toast" role="status"></div>
-  </main>
-  <script src="index.js"></script>
-</body>
+      <footer class="actions">
+        <button class="soft" id="createVoucher">
+          ⟳ Tạo phiếu nhập kho gộp...</button
+        ><span class="spacer"></span><button id="copyRow">▤ Copy</button
+        ><button disabled>♟ In</button><button disabled>⊕ Thêm Mới</button
+        ><button id="searchBtn">⌕ Tìm CT...</button
+        ><button disabled>▣ Ghi</button><button disabled>☑ Ghi sổ</button
+        ><button disabled>× Xóa</button
+        ><button class="exit" id="exitBtn">⊠ Đóng</button>
+      </footer>
+      <div class="toast" id="toast" role="status"></div>
+    </main>
+    <script src="index.js"></script>
+  </body>
 </html>
