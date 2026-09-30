@@ -1,0 +1,26 @@
+{
+  "name": "quanly_kho",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoangphuc1998py/QUANLY_KHO.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hoangphuc1998py/QUANLY_KHO/issues"
+  },
+  "homepage": "https://github.com/hoangphuc1998py/QUANLY_KHO#readme",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1"
+  }
+}
