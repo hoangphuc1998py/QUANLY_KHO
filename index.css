@@ -1755,7 +1755,7 @@ th:nth-child(9) {
 }
 
 .report-field.wide {
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 145px minmax(0, 1fr);
 }
 @media (max-width: 520px) {
   .report-field.wide {

@@ -23,7 +23,6 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "dotenv": "^18.0.4",
-    "express": "^5.2.1",
-    "xlsx": "^0.18.5"
+    "express": "^5.2.1"
   }
 }

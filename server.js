@@ -188,9 +188,10 @@ function parseNumber(value, label, fallback = 0) {
 }
 
 function parseDeliveryPersonId(value) {
-  const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) throw new Error('Vui lòng chọn nhà cung cấp.');
-  return id;
+  const id = Number(value)
+  if (!Number.isInteger(id) || id <= 0)
+    throw new Error('Vui lòng chọn nhà cung cấp.')
+  return id
 }
 
 app.get('/api/delivery-people', (req, res) => {
@@ -209,10 +210,13 @@ app.get('/api/delivery-people', (req, res) => {
 
 app.post('/api/delivery-people', (req, res) => {
   try {
-    const name = requireText(req.body.name, 'Tên nhà cung cấp');
-    const address = requireText(req.body.address, 'Địa chỉ nhà cung cấp');
-    const existing = db.prepare('SELECT id FROM delivery_people WHERE name = ? COLLATE NOCASE').get(name);
-    db.prepare(`
+    const name = requireText(req.body.name, 'Tên nhà cung cấp')
+    const address = requireText(req.body.address, 'Địa chỉ nhà cung cấp')
+    const existing = db
+      .prepare('SELECT id FROM delivery_people WHERE name = ? COLLATE NOCASE')
+      .get(name)
+    db.prepare(
+      `
       INSERT INTO delivery_people (name, address)
       VALUES (?, ?)
       ON CONFLICT(name) DO UPDATE SET
@@ -257,8 +261,11 @@ const createReceipt = db.transaction(body => {
     SELECT id, name, address
     FROM delivery_people
     WHERE id = ? AND is_active = 1
-  `).get(deliveryPersonId);
-  if (!deliveryPerson) throw new Error('Nhà cung cấp không tồn tại hoặc đã ngừng sử dụng.');
+  `
+    )
+    .get(deliveryPersonId)
+  if (!deliveryPerson)
+    throw new Error('Nhà cung cấp không tồn tại hoặc đã ngừng sử dụng.')
 
   const voucherNo = requireText(body.voucherNo, 'Số chứng từ')
   const voucherDate = parseOptionalDate(body.voucherDate, 'Ngày chứng từ', true)

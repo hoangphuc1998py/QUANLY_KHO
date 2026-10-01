@@ -398,7 +398,7 @@
                 <tr>
                   <th class="icon-head">▧</th>
                   <th>STT</th>
-                  <th>Mã SP</th>
+                  <th>Mã hàng</th>
                   <th>Tên hàng</th>
                   <th>Mã hàng ECUS</th>
                   <th>Kho</th>
@@ -495,12 +495,9 @@
               <label class="report-field"
                 ><span>Mã kho</span
                 ><select name="warehouse">
-                  <option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option>
-                  <option value="KHO AN HUNG">KHO AN HUNG</option>
-                  <option value="KHO AN THINH">KHO AN THINH</option>
-                  <option value="KHO AN PHU">KHO AN PHU</option>
-                  <option value="KHO AN PHAT">KHO AN PHAT</option>
-                  <option value="KHO VESTON">KHO VESTON</option>
+                  <option>Kho thành phẩm</option>
+                  <option>Kho nguyên liệu</option>
+                  <option>Kho phụ liệu</option>
                 </select></label
               >
               <label class="report-field"
@@ -514,8 +511,11 @@
                   placeholder="Nhập mã sản phẩm"
               /></label>
               <label class="report-field wide"
-                ><span>Hợp đồng</span
-                ><input type="text" name="contract" placeholder="Nhập hợp đồng"></label
+                ><span>Hợp đồng gia công</span
+                ><select name="contract">
+                  <option>HD01/2019-TSD</option>
+                  <option>HDGC2019-VN</option>
+                </select></label
               >
             </div>
           </fieldset>
@@ -1088,11 +1088,10 @@
       <div class="other-page hidden" id="otherPage"><fieldset><legend>Thông tin khác</legend><label class="form-row"><span>Nhân viên mua hàng:</span><input class="grow"></label><label class="form-row"><span>Đối tượng:</span><input class="grow"></label><label class="form-row"><span>Ghi chú:</span><input class="grow"></label></fieldset></div>
       <footer class="actions" aria-label="Chức năng chứng từ">
         <button class="soft" id="createVoucher">⟳ Tạo phiếu nhập kho gộp...</button>
-        <span class="spacer"></span><button id="importExcel">⇧ Import Excel</button><button id="copyVoucher">▤ Copy</button><button id="printVoucher">♟ In</button><button id="newVoucher">⊕ Thêm Mới</button>
+        <span class="spacer"></span><button id="copyVoucher">▤ Copy</button><button id="printVoucher">♟ In</button><button id="newVoucher">⊕ Thêm Mới</button>
         <button id="searchBtn">⌕ Tìm CT...</button><button id="saveVoucher">▣ Ghi</button><button id="postVoucher">☑ Ghi sổ</button>
         <button id="deleteVoucher">× Xóa</button><button class="exit" id="exitBtn">⊠ Đóng</button>
       </footer>
-      <input id="excelFile" class="hidden" type="file" accept=".xlsx,.xls,.xlsm,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" aria-label="Chọn file Excel">
     </section>
     <section class="report-page hidden" id="stockReportPage" aria-labelledby="reportTitle">
       <div class="report-heading"><div><h1 id="reportTitle">Nhập xuất tồn (Gia công)</h1><p>Chọn điều kiện lọc để xem số liệu nhập, xuất và tồn kho.</p></div></div>
@@ -1107,10 +1106,10 @@
         <fieldset class="report-filter"><legend>Điều kiện lọc</legend><div class="report-fields">
           <label class="report-field"><span>Từ ngày</span><input type="date" name="fromDate" value="2019-07-10"></label>
           <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate" value="2019-07-11"></label>
-          <label class="report-field"><span>Mã kho</span><select name="warehouse"><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></label>
+          <label class="report-field"><span>Mã kho</span><select name="warehouse"><option>Kho thành phẩm</option><option>Kho nguyên liệu</option><option>Kho phụ liệu</option></select></label>
           <label class="report-field"><span>Hàng hóa</span><input type="text" name="item"></label>
           <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
-          <label class="report-field wide"><span>Hợp đồng</span><input type="text" name="contract" placeholder="Nhập hợp đồng"></label>
+          <label class="report-field wide"><span>Hợp đồng gia công</span><select name="contract"><option>HD01/2019-TSD</option><option>HDGC2019-VN</option></select></label>
         </div></fieldset>
         <label class="report-currency"><input type="checkbox" name="foreignCurrency"> In trị giá theo tỉ giá nguyên tệ</label>
         <div class="report-actions"><button type="submit" class="primary-action">⌕ Xem báo cáo tổng hợp</button><button type="button" class="secondary-action" id="detailReportBtn">▤ Báo cáo chi tiết</button><button type="button" class="secondary-action" id="closeReport">◉ Đóng</button></div>
@@ -1190,7 +1189,6 @@
       <div class="toast" id="toast" role="status"></div>
     </main>
     <footer class="site-copyright">© ANHUCO. All rights reserved.</footer>
-    <script src="http://localhost:3000/node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="index.js"></script>
   </body>
 </html>
