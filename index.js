@@ -735,6 +735,10 @@ function saveVoucher(status = 'Đã ghi') {
     saveReceipt()
     return true
   }
+  if (documentType() === 'out') {
+    saveIssue()
+    return true
+  }
   if (documentType() === 'in') {
     saveReceipt()
     return true
@@ -935,6 +939,114 @@ async function searchDatabaseReceipts(query) {
   }
 }
 
+async function saveIssue() {
+  const payload = receiptPayload()
+  payload.receiverName = document.querySelector('#senderName').value
+  payload.supplierAddress = document.querySelector('#senderAddress').value
+  if (!payload.voucherNo.trim() || !payload.voucherDate) {
+    notify('Vui lòng nhập số và ngày chứng từ.')
+    return
+  }
+  if (!payload.items.length || payload.items.some(item => !item.itemCode.trim())) {
+    notify('Vui lòng nhập ít nhất một dòng hàng và mã hàng.')
+    return
+  }
+  const button = document.querySelector('#saveVoucher')
+  button.disabled = true
+  button.textContent = 'Đang ghi...'
+  try {
+    const response = await fetch(apiUrl('/api/inventory-issues'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const result = await response.json().catch(() => {
+      throw new Error('Máy chủ dữ liệu chưa hỗ trợ lưu phiếu xuất. Hãy khởi động lại máy chủ bằng lệnh npm start rồi tải lại trang.')
+    })
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không thể lưu phiếu xuất kho.')
+    currentSavedId = `out:${result.data.voucherNo}`
+    voucherStatus.textContent = 'Đã ghi'
+    notify(`Đã ghi phiếu xuất ${result.data.voucherNo} vào cơ sở dữ liệu.`)
+  } catch (error) {
+    notify(apiErrorMessage(error, 'Không thể lưu phiếu xuất kho.'))
+  } finally {
+    button.disabled = false
+    button.textContent = '▣ Ghi'
+  }
+}
+
+async function searchDatabaseIssues(query) {
+  const list = document.querySelector('#voucherSearchResults')
+  try {
+    const response = await fetch(apiUrl(`/api/inventory-issues?q=${encodeURIComponent(query)}`))
+    const result = await response.json().catch(() => {
+      throw new Error('Máy chủ dữ liệu chưa hỗ trợ tìm phiếu xuất. Hãy khởi động lại máy chủ bằng lệnh npm start rồi tải lại trang.')
+    })
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không thể tìm phiếu xuất.')
+    list.replaceChildren()
+    if (!result.data?.length) {
+      list.textContent = 'Không tìm thấy phiếu xuất trong cơ sở dữ liệu.'
+      list.className = 'voucher-search-results empty'
+      return
+    }
+    list.className = 'voucher-search-results'
+    result.data.forEach(record => {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.innerHTML = '<strong></strong><span></span><small></small>'
+      button.querySelector('strong').textContent = record.voucherNo
+      button.querySelector('span').textContent = record.receiverName || 'Người nhận hàng'
+      button.querySelector('small').textContent = record.status || 'Đã ghi'
+      button.addEventListener('click', () => loadIssueVoucher(record))
+      list.append(button)
+    })
+  } catch (error) {
+    list.textContent = apiErrorMessage(error, 'Không thể tìm phiếu xuất trong cơ sở dữ liệu.')
+    list.className = 'voucher-search-results empty'
+  }
+}
+
+function loadIssueVoucher(record) {
+  const set = (id, value) => {
+    const control = document.getElementById(id)
+    if (control) control.value = value ?? ''
+  }
+  set('senderName', record.receiverName)
+  set('senderAddress', record.address)
+  set('transporterName', record.transporterName)
+  set('receiptDescription', record.description)
+  set('warehousePicker', record.warehouseCode)
+  set('warehouseName', record.warehouseCode)
+  set('customsDeclarationNo', record.customsDeclarationNo)
+  set('customsDeclarationDate', record.customsDeclarationDate)
+  set('contractNo', record.contractNo)
+  set('contractDate', record.contractDate)
+  set('invoiceNo', record.invoiceNo)
+  set('invoiceDate', record.invoiceDate)
+  set('voucherNo', record.voucherNo)
+  set('voucherDate', record.voucherDate)
+  set('originalVoucherNo', record.originalVoucherNo)
+  set('originalVoucherDate', record.originalVoucherDate)
+  set('voucherType', record.receiptType)
+  set('goodsType', record.itemType)
+  set('currencyCode', record.currency || 'VND')
+  exchangeRateInput.value = String(record.exchangeRate || 1)
+  document.querySelector('#isSelfSupplied').checked = Boolean(record.isSelfSupplied)
+  const template = document.querySelector('#itemsTable tbody .item-row')
+  tableBody.replaceChildren()
+  ;(record.items || []).forEach(item => {
+    const row = template.cloneNode(true)
+    const values = ['', '', item.itemCode, item.itemName, item.ecusItemCode, item.warehouseCode, item.debitAccount, item.creditAccount, item.unit, String(item.quantity ?? ''), String(item.unitPrice ?? ''), '']
+    values.forEach((value, index) => { row.cells[index].textContent = value })
+    tableBody.append(row)
+  })
+  if (!tableBody.children.length) tableBody.append(template)
+  currentSavedId = `out:${record.voucherNo}`
+  voucherStatus.textContent = record.status || 'Đã ghi'
+  voucherSearchDialog.close()
+  recalculate()
+  notify(`Đã mở phiếu xuất ${record.voucherNo}.`)
+}
+
 function renderVoucherSearch() {
   const query = document
     .querySelector('#voucherSearchInput')
@@ -982,11 +1094,13 @@ document.querySelector('#searchBtn').addEventListener('click', () => {
   voucherSearchDialog.showModal()
   document.querySelector('#voucherSearchInput').focus()
   if (documentType() === 'in') searchDatabaseReceipts('')
+  else if (documentType() === 'out') searchDatabaseIssues('')
 })
 document
   .querySelector('#voucherSearchInput')
   .addEventListener('input', event => {
     if (documentType() === 'in') searchDatabaseReceipts(event.target.value.trim())
+    else if (documentType() === 'out') searchDatabaseIssues(event.target.value.trim())
     else renderVoucherSearch()
   })
 document

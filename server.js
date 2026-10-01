@@ -434,6 +434,91 @@ app.get('/api/inventory-receipts', (req, res) => {
   res.json({ success: true, data: receipts })
 })
 
+const saveIssue = db.transaction(body => {
+  const voucherNo = requireText(body.voucherNo, 'Số chứng từ')
+  const voucherDate = parseOptionalDate(body.voucherDate, 'Ngày chứng từ', true)
+  const exchangeRate = parseNumber(body.exchangeRate, 'Tỷ giá', 1)
+  if (exchangeRate <= 0) throw new Error('Tỷ giá phải lớn hơn 0.')
+  if (!Array.isArray(body.items) || !body.items.length)
+    throw new Error('Phiếu xuất cần có ít nhất một dòng hàng.')
+
+  const items = body.items.map((item, index) => {
+    const quantity = parseNumber(item.quantity, `Số lượng dòng ${index + 1}`)
+    const unitPrice = parseNumber(item.unitPrice, `Đơn giá dòng ${index + 1}`)
+    if (quantity < 0 || unitPrice < 0)
+      throw new Error(`Số lượng và đơn giá dòng ${index + 1} không được âm.`)
+    return {
+      itemCode: requireText(item.itemCode, `Mã hàng dòng ${index + 1}`),
+      itemName: cleanText(item.itemName) || null,
+      ecusItemCode: cleanText(item.ecusItemCode) || null,
+      warehouseCode: cleanText(item.warehouseCode) || cleanText(body.warehouseCode) || null,
+      debitAccount: cleanText(item.debitAccount) || null,
+      creditAccount: cleanText(item.creditAccount) || null,
+      unit: cleanText(item.unit) || null,
+      quantity,
+      unitPrice,
+      amount: quantity * unitPrice,
+    }
+  })
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
+  const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
+  const fields = [
+    cleanText(body.receiverName) || cleanText(body.supplierName) || null,
+    cleanText(body.supplierAddress) || null,
+    cleanText(body.transporterName) || null,
+    cleanText(body.description) || null,
+    cleanText(body.warehouseCode) || null,
+    parseOptionalDate(body.customsDeclarationDate, 'Ngày tờ khai') && cleanText(body.customsDeclarationNo) || null,
+    parseOptionalDate(body.customsDeclarationDate, 'Ngày tờ khai'),
+    cleanText(body.contractNo) || null,
+    parseOptionalDate(body.contractDate, 'Ngày hợp đồng'),
+    cleanText(body.invoiceNo) || null,
+    parseOptionalDate(body.invoiceDate, 'Ngày hóa đơn'),
+    voucherDate,
+    cleanText(body.originalVoucherNo) || null,
+    parseOptionalDate(body.originalVoucherDate, 'Ngày chứng từ gốc'),
+    exchangeRate,
+    cleanText(body.currency) || 'VND',
+    cleanText(body.receiptType) || null,
+    cleanText(body.itemType) || null,
+    body.isSelfSupplied ? 1 : 0,
+    totalQuantity,
+    totalAmount,
+  ]
+  const existing = db.prepare('SELECT id FROM inventory_issues WHERE voucher_no = ? COLLATE NOCASE').get(voucherNo)
+  let issueId
+  if (existing) {
+    db.prepare(`UPDATE inventory_issues SET receiver_name=?, address=?, transporter_name=?, description=?, warehouse_code=?, customs_declaration_no=?, customs_declaration_date=?, contract_no=?, contract_date=?, invoice_no=?, invoice_date=?, voucher_date=?, original_voucher_no=?, original_voucher_date=?, exchange_rate=?, currency=?, issue_type=?, item_type=?, is_self_supplied=?, total_quantity=?, total_amount=? WHERE voucher_no=?`).run(...fields, voucherNo)
+    issueId = existing.id
+    db.prepare('DELETE FROM inventory_issue_details WHERE issue_id=?').run(issueId)
+  } else {
+    const result = db.prepare(`INSERT INTO inventory_issues(receiver_name,address,transporter_name,description,warehouse_code,customs_declaration_no,customs_declaration_date,contract_no,contract_date,invoice_no,invoice_date,voucher_no,voucher_date,original_voucher_no,original_voucher_date,exchange_rate,currency,issue_type,item_type,is_self_supplied,total_quantity,total_amount,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(...fields.slice(0, 11), voucherNo, ...fields.slice(11), 'New')
+    issueId = Number(result.lastInsertRowid)
+  }
+  const insert = db.prepare('INSERT INTO inventory_issue_details(issue_id,line_number,item_code,item_name,ecus_item_code,warehouse_code,debit_account,credit_account,unit,quantity,unit_price,amount) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+  items.forEach((item, index) => insert.run(issueId,index+1,item.itemCode,item.itemName,item.ecusItemCode,item.warehouseCode,item.debitAccount,item.creditAccount,item.unit,item.quantity,item.unitPrice,item.amount))
+  return { id: issueId, voucherNo, totalQuantity, totalAmount }
+})
+
+app.post('/api/inventory-issues', (req, res) => {
+  try {
+    res.json({ success: true, data: saveIssue(req.body || {}) })
+  } catch (error) {
+    res.status(422).json({ success: false, error: error.message })
+  }
+})
+
+app.get('/api/inventory-issues', (req, res) => {
+  const query = String(req.query.q || '').trim().replace(/[\\%_]/g, value => `\\${value}`)
+  const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ORDER BY i.voucher_no,d.line_number`).all(`%${query}%`)
+  const records = [...new Map(rows.map(row => [row.id,row])).values()].map(row => ({
+    ...row,
+    items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,quantity:detail.quantity,unitPrice:detail.unitPrice })),
+  }))
+  for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','quantity','unitPrice'].forEach(key => delete record[key])
+  res.json({ success:true,data:records })
+})
+
 if (require.main === module) {
   app.listen(3000, () => {
     console.log(
