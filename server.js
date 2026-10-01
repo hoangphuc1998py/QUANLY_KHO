@@ -253,9 +253,22 @@ const insertReceiptDetail = db.prepare(`
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `)
 
+const updateReceipt = db.prepare(`
+  UPDATE inventory_receipts SET
+    delivery_person_id = ?, deliverer_name = ?, address = ?, transporter_name = ?,
+    description = ?, warehouse_code = ?, product_code = ?, customs_declaration_no = ?,
+    customs_declaration_date = ?, contract_no = ?, contract_date = ?, invoice_no = ?,
+    invoice_date = ?, voucher_date = ?, original_voucher_no = ?, original_voucher_date = ?,
+    exchange_rate = ?, currency = ?, receipt_type = ?, item_type = ?, is_self_supplied = ?,
+    total_quantity = ?, total_amount = ? WHERE voucher_no = ?
+`)
+const deleteReceiptDetails = db.prepare(
+  'DELETE FROM inventory_receipt_details WHERE receipt_id = ?'
+)
+
 const createReceipt = db.transaction(body => {
-  const deliveryPersonId = parseDeliveryPersonId(body.deliveryPersonId)
-  const deliveryPerson = db
+  const deliveryPersonId = Number(body.deliveryPersonId) || null
+  const deliveryPerson = deliveryPersonId ? db
     .prepare(
       `
     SELECT id, name, address
@@ -263,8 +276,8 @@ const createReceipt = db.transaction(body => {
     WHERE id = ? AND is_active = 1
   `
     )
-    .get(deliveryPersonId)
-  if (!deliveryPerson)
+    .get(deliveryPersonId) : null
+  if (deliveryPersonId && !deliveryPerson)
     throw new Error('Nhà cung cấp không tồn tại hoặc đã ngừng sử dụng.')
 
   const voucherNo = requireText(body.voucherNo, 'Số chứng từ')
@@ -298,10 +311,11 @@ const createReceipt = db.transaction(body => {
 
   const totalQuantity = items.reduce((total, item) => total + item.quantity, 0)
   const totalAmount = items.reduce((total, item) => total + item.amount, 0)
-  const receipt = insertReceipt.run(
-    deliveryPerson.id,
-    deliveryPerson.name,
-    deliveryPerson.address,
+  const existing = db.prepare('SELECT id FROM inventory_receipts WHERE voucher_no = ? COLLATE NOCASE').get(voucherNo)
+  const values = [
+    deliveryPerson?.id || null,
+    deliveryPerson?.name || cleanText(body.supplierName) || null,
+    deliveryPerson?.address || cleanText(body.supplierAddress) || null,
     cleanText(body.transporterName) || null,
     cleanText(body.description) || null,
     cleanText(body.warehouseCode) || null,
@@ -312,7 +326,6 @@ const createReceipt = db.transaction(body => {
     parseOptionalDate(body.contractDate, 'Ngày hợp đồng'),
     cleanText(body.invoiceNo) || null,
     parseOptionalDate(body.invoiceDate, 'Ngày hóa đơn'),
-    voucherNo,
     voucherDate,
     cleanText(body.originalVoucherNo) || null,
     parseOptionalDate(body.originalVoucherDate, 'Ngày chứng từ gốc'),
@@ -323,10 +336,18 @@ const createReceipt = db.transaction(body => {
     body.isSelfSupplied ? 1 : 0,
     totalQuantity,
     totalAmount,
-    'New'
-  )
-
-  const receiptId = Number(receipt.lastInsertRowid)
+  ]
+  let receiptId
+  if (existing) {
+    updateReceipt.run(...values, voucherNo)
+    receiptId = existing.id
+    deleteReceiptDetails.run(receiptId)
+  } else {
+    const receipt = insertReceipt.run(
+      ...values.slice(0, 13), voucherNo, ...values.slice(13), 'New'
+    )
+    receiptId = Number(receipt.lastInsertRowid)
+  }
   items.forEach((item, index) => {
     insertReceiptDetail.run(
       receiptId,
@@ -348,9 +369,9 @@ const createReceipt = db.transaction(body => {
     id: receiptId,
     voucherNo,
     deliveryPerson: {
-      id: deliveryPerson.id,
-      name: deliveryPerson.name,
-      address: deliveryPerson.address,
+      id: deliveryPerson?.id || null,
+      name: deliveryPerson?.name || cleanText(body.supplierName) || null,
+      address: deliveryPerson?.address || cleanText(body.supplierAddress) || null,
     },
     totalQuantity,
     totalAmount,
@@ -360,20 +381,57 @@ const createReceipt = db.transaction(body => {
 app.post('/api/inventory-receipts', (req, res) => {
   try {
     const receipt = createReceipt(req.body || {})
-    res
-      .status(201)
-      .json({ success: true, message: 'Đã lưu phiếu nhập kho.', data: receipt })
+    res.json({ success: true, message: 'Đã lưu phiếu nhập kho.', data: receipt })
   } catch (error) {
-    if (
-      String(error.message).includes(
-        'UNIQUE constraint failed: inventory_receipts.voucher_no'
-      )
-    ) {
-      res.status(409).json({ success: false, error: 'Số chứng từ đã tồn tại.' })
-      return
-    }
     res.status(422).json({ success: false, error: error.message })
   }
+})
+
+app.get('/api/inventory-receipts', (req, res) => {
+  const query = String(req.query.q || '').trim()
+  const escaped = query.replace(/[\\%_]/g, value => `\\${value}`)
+  const rows = db.prepare(`
+    SELECT r.id, r.voucher_no AS voucherNo, r.voucher_date AS voucherDate,
+      r.deliverer_name AS delivererName, r.address, r.transporter_name AS transporterName,
+      r.description, r.warehouse_code AS warehouseCode, r.product_code AS productCode,
+      r.customs_declaration_no AS customsDeclarationNo,
+      r.customs_declaration_date AS customsDeclarationDate,
+      r.contract_no AS contractNo, r.contract_date AS contractDate,
+      r.invoice_no AS invoiceNo, r.invoice_date AS invoiceDate,
+      r.original_voucher_no AS originalVoucherNo,
+      r.original_voucher_date AS originalVoucherDate,
+      r.exchange_rate AS exchangeRate, r.currency, r.receipt_type AS receiptType,
+      r.item_type AS itemType, r.is_self_supplied AS isSelfSupplied, r.status,
+      d.item_code AS itemCode, d.item_name AS itemName,
+      d.ecus_item_code AS ecusItemCode, d.warehouse_code AS detailWarehouseCode,
+      d.debit_account AS debitAccount, d.credit_account AS creditAccount,
+      d.unit, d.quantity, d.unit_price AS unitPrice
+    FROM inventory_receipts r
+    LEFT JOIN inventory_receipt_details d ON d.receipt_id = r.id
+    WHERE r.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE
+    ORDER BY r.voucher_no, d.line_number
+  `).all(`%${escaped}%`)
+  const receipts = [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
+    ...row,
+    items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({
+      itemCode: detail.itemCode, itemName: detail.itemName,
+      ecusItemCode: detail.ecusItemCode, warehouseCode: detail.detailWarehouseCode,
+      debitAccount: detail.debitAccount, creditAccount: detail.creditAccount,
+      unit: detail.unit, quantity: detail.quantity, unitPrice: detail.unitPrice,
+    })),
+  }))
+  for (const receipt of receipts) {
+    delete receipt.detailWarehouseCode
+    delete receipt.itemCode
+    delete receipt.itemName
+    delete receipt.ecusItemCode
+    delete receipt.debitAccount
+    delete receipt.creditAccount
+    delete receipt.unit
+    delete receipt.quantity
+    delete receipt.unitPrice
+  }
+  res.json({ success: true, data: receipts })
 })
 
 if (require.main === module) {

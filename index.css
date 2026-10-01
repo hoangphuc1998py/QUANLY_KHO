@@ -480,7 +480,7 @@ th:nth-child(9) {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 25px;
+  top: 25px;
   z-index: 5;
   transform: translateX(-50%);
   display: none;
