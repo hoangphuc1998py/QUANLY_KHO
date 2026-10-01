@@ -100,6 +100,198 @@ function deleteCurrentRow() {
   recalculate()
 }
 
+function normalizeExcelHeader(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+}
+
+const excelColumnAliases = {
+  itemCode: [
+    'masp', 'masanpham', 'mahang', 'mahanghoa', 'mahangsp', 'mavattu',
+    'mavt', 'mahangton', 'itemcode', 'productcode', 'materialcode',
+  ],
+  itemName: [
+    'tenhang', 'tenhanghoa', 'tensanpham', 'tenvattu', 'itemname', 'productname',
+  ],
+  ecusItemCode: [
+    'mahangecus', 'maecus', 'ecus', 'ecusitemcode', 'ecuscode',
+  ],
+  warehouseCode: ['kho', 'makho', 'warehouse', 'warehousecode'],
+  debitAccount: ['tkno', 'taikhoanno', 'debitaccount'],
+  creditAccount: ['tkco', 'taikhoanco', 'creditaccount'],
+  unit: ['donvitinh', 'dvt', 'unit'],
+  quantity: ['soluong', 'sl', 'quantity', 'qty'],
+  unitPrice: ['dongia', 'unitprice', 'price'],
+  amount: ['thanhtien', 'thanhtienhang', 'amount', 'total'],
+}
+
+function findExcelColumn(header, field, aliases) {
+  const exactIndex = header.findIndex(value => aliases.includes(value))
+  if (exactIndex >= 0) return exactIndex
+  return header.findIndex(value => {
+    if (field === 'itemCode' && value.includes('ecus')) return false
+    return aliases.some(alias => alias.length >= 4 && value.includes(alias))
+  })
+}
+
+function importExcelRows(matrix) {
+  const nonEmptyRows = matrix
+    .map(row => (Array.isArray(row) ? row : []))
+    .filter(row => row.some(value => String(value ?? '').trim() !== ''))
+  if (!nonEmptyRows.length) throw new Error('File Excel không có dữ liệu.')
+
+  let headerEndIndex = -1
+  let columnIndexes = {}
+  let bestHeaderScore = 1
+  for (
+    let rowIndex = 0;
+    rowIndex < Math.min(nonEmptyRows.length, 20);
+    rowIndex++
+  ) {
+    for (let rowSpan = 1; rowSpan <= 3; rowSpan++) {
+      const headerRows = nonEmptyRows.slice(rowIndex, rowIndex + rowSpan)
+      if (!headerRows.length) continue
+      const width = Math.max(...headerRows.map(row => row.length))
+      const normalized = Array.from({ length: width }, (_, columnIndex) =>
+        normalizeExcelHeader(
+          headerRows.map(row => row[columnIndex] ?? '').filter(Boolean).join(' ')
+        )
+      )
+      const found = Object.fromEntries(
+        Object.entries(excelColumnAliases).map(([field, aliases]) => [
+          field,
+          findExcelColumn(normalized, field, aliases),
+        ])
+      )
+      const score = Object.values(found).filter(index => index >= 0).length
+      if (found.itemCode >= 0 && score > bestHeaderScore) {
+        bestHeaderScore = score
+        headerEndIndex = rowIndex + rowSpan - 1
+        columnIndexes = found
+      }
+    }
+  }
+
+  let imported
+  if (headerEndIndex >= 0) {
+    imported = nonEmptyRows.slice(headerEndIndex + 1).map(source => {
+      const get = field => {
+        const index = columnIndexes[field]
+        return index >= 0 ? String(source[index] ?? '').trim() : ''
+      }
+      return {
+        itemCode: get('itemCode'),
+        itemName: get('itemName'),
+        ecusItemCode: get('ecusItemCode'),
+        warehouseCode: get('warehouseCode'),
+        debitAccount: get('debitAccount'),
+        creditAccount: get('creditAccount'),
+        unit: get('unit'),
+        quantity: get('quantity'),
+        unitPrice: get('unitPrice'),
+      }
+    }).filter(item => Object.values(item).some(value => value !== ''))
+  } else {
+    // Support headerless exports in the same order as the voucher grid,
+    // optionally preceded by the STT column.
+    const firstDataRow = nonEmptyRows.find(row =>
+      row.some(value => String(value).trim())
+    )
+    const hasSerialNumber =
+      firstDataRow?.length >= 11 &&
+      /^\d+$/.test(String(firstDataRow[0]).trim())
+    const start = hasSerialNumber ? 1 : 0
+    if (!firstDataRow || firstDataRow.length - start < 9)
+      throw new Error(
+        'Không nhận diện được cột Mã SP. File cần có tiêu đề hoặc theo thứ tự cột của danh sách hàng.'
+      )
+    imported = nonEmptyRows
+      .map(source => ({
+        itemCode: String(source[start] ?? '').trim(),
+        itemName: String(source[start + 1] ?? '').trim(),
+        ecusItemCode: String(source[start + 2] ?? '').trim(),
+        warehouseCode: String(source[start + 3] ?? '').trim(),
+        debitAccount: String(source[start + 4] ?? '').trim(),
+        creditAccount: String(source[start + 5] ?? '').trim(),
+        unit: String(source[start + 6] ?? '').trim(),
+        quantity: String(source[start + 7] ?? '').trim(),
+        unitPrice: String(source[start + 8] ?? '').trim(),
+      }))
+      .filter(item => Object.values(item).some(value => value !== ''))
+  }
+
+  if (!imported.length) throw new Error('Không tìm thấy dòng hàng dưới tiêu đề cột.')
+  if (imported.some(item => !item.itemCode))
+    throw new Error('Có dòng hàng thiếu Mã SP/Mã hàng; chưa nạp dữ liệu để tránh lệch cột.')
+
+  const template = tableBody.querySelector('.item-row')
+  const hasExistingItems = rows().some(row =>
+    [...row.querySelectorAll('[contenteditable="true"]')].some(cell =>
+      cell.textContent.trim()
+    )
+  )
+  if (!hasExistingItems) tableBody.replaceChildren()
+  for (const item of imported) {
+    const row = template.cloneNode(true)
+    const values = [
+      '', '', item.itemCode, item.itemName, item.ecusItemCode,
+      item.warehouseCode, item.debitAccount, item.creditAccount, item.unit,
+      item.quantity, item.unitPrice, '',
+    ]
+    values.forEach((value, index) => {
+      if (row.cells[index]) row.cells[index].textContent = value
+    })
+    tableBody.append(row)
+  }
+  recalculate()
+  return imported.length
+}
+
+document.querySelector('#importExcel').addEventListener('click', () => {
+  document.querySelector('#excelFileInput').click()
+})
+
+document
+  .querySelector('#excelFileInput')
+  .addEventListener('change', async event => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      if (!window.XLSX)
+        throw new Error('Không tải được bộ đọc Excel. Hãy tải lại trang.')
+      const bytes = await file.arrayBuffer()
+      const workbook = XLSX.read(bytes, { type: 'array', cellDates: false })
+      if (!workbook.SheetNames.length)
+        throw new Error('File không có trang tính.')
+      let count = 0
+      let lastSheetError
+      for (const sheetName of workbook.SheetNames) {
+        const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+          header: 1,
+          defval: '',
+          raw: false,
+          blankrows: false,
+        })
+        try {
+          count = importExcelRows(matrix)
+          break
+        } catch (error) {
+          lastSheetError = error
+        }
+      }
+      if (!count) throw lastSheetError || new Error('Không tìm thấy dữ liệu hàng.')
+      notify(`Đã nạp ${count} dòng hàng từ ${file.name}.`)
+    } catch (error) {
+      notify(error.message || 'Không đọc được dữ liệu từ file Excel.')
+    } finally {
+      event.target.value = ''
+    }
+  })
+
 document.querySelectorAll('.tab').forEach(tab =>
   tab.addEventListener('click', () => {
     const other = tab.dataset.tab === 'other'
@@ -122,7 +314,7 @@ const pagePresets = {
     headers: [
       '▧',
       'STT',
-      'Mã hàng',
+      'Mã SP',
       'Tên hàng',
       'Mã hàng ECUS',
       'Kho',
@@ -144,7 +336,7 @@ const pagePresets = {
     headers: [
       '▧',
       'STT',
-      'Mã hàng',
+      'Mã SP',
       'Tên hàng',
       'Mã hàng ECUS',
       'Đơn vị tính',
@@ -1171,6 +1363,10 @@ document.addEventListener('keydown', event => {
   if (event.key === 'F5') {
     event.preventDefault()
     copyRow()
+  }
+  if (event.key === 'F6') {
+    event.preventDefault()
+    document.querySelector('#excelFileInput').click()
   }
   if (event.key === 'F8') {
     event.preventDefault()

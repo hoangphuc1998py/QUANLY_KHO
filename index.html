@@ -398,7 +398,7 @@
                 <tr>
                   <th class="icon-head">▧</th>
                   <th>STT</th>
-                  <th>Mã hàng</th>
+                  <th>Mã SP</th>
                   <th>Tên hàng</th>
                   <th>Mã hàng ECUS</th>
                   <th>Kho</th>
@@ -1089,6 +1089,8 @@
       <footer class="actions" aria-label="Chức năng chứng từ">
         <button class="soft" id="createVoucher">⟳ Tạo phiếu nhập kho gộp...</button>
         <span class="spacer"></span><button id="copyVoucher">▤ Copy</button><button id="printVoucher">♟ In</button><button id="newVoucher">⊕ Thêm Mới</button>
+        <button id="importExcel" type="button">⇧ Import Excel</button>
+        <input id="excelFileInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
         <button id="searchBtn">⌕ Tìm CT...</button><button id="saveVoucher">▣ Ghi</button><button id="postVoucher">☑ Ghi sổ</button>
         <button id="deleteVoucher">× Xóa</button><button class="exit" id="exitBtn">⊠ Đóng</button>
       </footer>
@@ -1189,6 +1191,7 @@
       <div class="toast" id="toast" role="status"></div>
     </main>
     <footer class="site-copyright">© ANHUCO. All rights reserved.</footer>
+    <script src="/node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="index.js"></script>
   </body>
 </html>
