@@ -229,10 +229,9 @@ body {
 }
 .declaration-grid {
   display: grid;
-  grid-template-columns: 100px minmax(130px, 1fr) 100px minmax(
-      130px,
-      1fr
-    ) 100px minmax(130px, 1fr);
+  grid-template-columns:
+    100px minmax(130px, 1fr) 100px minmax(130px, 1fr)
+    100px minmax(130px, 1fr);
   gap: 10px 9px;
   align-items: center;
 }
