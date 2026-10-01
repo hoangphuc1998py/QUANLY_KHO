@@ -1,0 +1,15 @@
+{
+  "arrowParens": "avoid",
+  "bracketSameLine": true,
+  "printWidth": 80,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "es5",
+  "jsxSingleQuote": false,
+  "jsxBracketSameLine": false,
+  "tsxBracketSameLine": true,
+  "proseWrap": "preserve",
+  "endOfLine": "lf",
+  "tabWidth": 2,
+  "useTabs": false
+}

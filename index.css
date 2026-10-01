@@ -24,3 +24,7 @@
 
 .report-field.wide{grid-template-columns:145px minmax(0,1fr)}
 @media(max-width:520px){.report-field.wide{grid-template-columns:minmax(0,1fr)}}
+.actions .primary-save{border-color:#2563eb;background:#2563eb;color:#fff}.actions .primary-save:hover:not(:disabled){border-color:#1d4ed8;background:#1d4ed8}.actions .primary-save:disabled{background:#94a3b8;border-color:#94a3b8;color:#fff}
+.add-delivery-person{width:35px;padding:0;font-size:18px;line-height:1}.delivery-person-field{display:flex;flex-direction:column;gap:6px;margin-top:12px;color:#475569;font-size:12px;font-weight:500}.delivery-person-field input{height:35px;width:100%;padding:0 10px;border:1px solid #d8e1ec;border-radius:7px;background:#fff;color:#1e293b;font:12px Inter,"Segoe UI",sans-serif;outline:none}.delivery-person-field input:focus{border-color:#4f83f1;box-shadow:0 0 0 3px #2563eb18}
+.delivery-person-message{min-height:18px;margin:10px 0 0;color:#dc2626;font-size:12px;line-height:1.4}
+.app-window{padding-bottom:84px}.actions{position:fixed;left:50%;bottom:0;z-index:10;width:min(100% - 48px,1440px);padding:10px 0;transform:translateX(-50%);background:#f4f7fb;box-shadow:0 -8px 16px #f4f7fb}.actions .primary-save{order:10}@media(max-width:760px){.actions{width:calc(100% - 28px)}}

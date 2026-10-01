@@ -1,6 +1,13 @@
 const tableBody = document.querySelector('#itemsTable tbody');
 const toast = document.querySelector('#toast');
 let toastTimer;
+// The UI may be opened from a preview server or directly from the HTML file.
+// In both cases, keep API requests pointed at the Express server.
+const apiBaseUrl = window.location.port === '3000' ? '' : 'http://localhost:3000';
+
+function apiUrl(path) {
+  return `${apiBaseUrl}${path}`;
+}
 
 function notify(message) {
   toast.textContent = message;
@@ -11,13 +18,27 @@ function notify(message) {
 
 function rows() { return [...tableBody.querySelectorAll('.item-row')]; }
 
+function parseTableNumber(value) {
+  const text = String(value ?? '').trim().replaceAll(' ', '');
+  if (!text) return 0;
+  if (text.includes(',') && text.includes('.')) {
+    return Number(text.lastIndexOf(',') > text.lastIndexOf('.')
+      ? text.replaceAll('.', '').replace(',', '.')
+      : text.replaceAll(',', '')) || 0;
+  }
+  if (text.includes(',')) {
+    return Number(/^[-+]?\d{1,3}(,\d{3})+$/.test(text) ? text.replaceAll(',', '') : text.replace(',', '.')) || 0;
+  }
+  return Number(/^[-+]?\d{1,3}(\.\d{3})+$/.test(text) ? text.replaceAll('.', '') : text) || 0;
+}
+
 function recalculate() {
   let quantity = 0;
   let amount = 0;
   rows().forEach((row, index) => {
     row.children[1].textContent = row.querySelector('[contenteditable="true"]')?.textContent.trim() ? index + 1 : '';
-    const qty = Number(row.querySelector('.quantity')?.textContent.replaceAll(',', '').trim()) || 0;
-    const price = Number(row.querySelector('.price')?.textContent.replaceAll(',', '').trim()) || 0;
+    const qty = parseTableNumber(row.querySelector('.quantity')?.textContent);
+    const price = parseTableNumber(row.querySelector('.price')?.textContent);
     quantity += qty;
     const lineAmount = qty * price;
     amount += lineAmount;
@@ -144,6 +165,8 @@ function changePage(page) {
   document.querySelector('.general-box .form-row span').innerHTML = `${config.receiver} <b>*</b>`;
   document.querySelector('.voucher').value = config.code;
   document.querySelector('#createVoucher').textContent = config.voucherAction;
+  document.querySelector('#saveReceipt').disabled = page !== 'in';
+  document.querySelector('#saveReceipt').textContent = page === 'in' ? 'Lưu phiếu nhập' : 'Lưu phiếu xuất';
   setOptions(document.querySelector('#voucherType'), config.voucherType, page === 'out' ? 'Sản xuất' : 'Thành phẩm sản xuất');
   setOptions(document.querySelector('#goodsType'), config.goodsType, page === 'out' ? 'Sản phẩm' : 'Nguyên liệu');
   document.querySelectorAll('#itemsTable thead th').forEach((header, index) => { header.textContent = config.headers[index]; });
@@ -165,8 +188,100 @@ document.querySelector('#warehousePicker').addEventListener('change', event => {
   if (!code) return;
   document.querySelector('#warehouseName').value = warehouseNames[code];
 });
-document.querySelector('#senderPicker').addEventListener('change', event => {
-  if (event.target.value) document.querySelector('#senderName').value = event.target.value;
+const senderPicker = document.querySelector('#senderPicker');
+const senderNameInput = document.querySelector('#senderName');
+const senderAddressInput = document.querySelector('#senderAddress');
+const deliveryPersonDialog = document.querySelector('#deliveryPersonDialog');
+const deliveryPersonForm = document.querySelector('#deliveryPersonForm');
+const deliveryPersonMessage = document.querySelector('#deliveryPersonMessage');
+let deliveryPeople = [];
+
+async function loadDeliveryPeople() {
+  try {
+    const response = await fetch(apiUrl('/api/delivery-people'));
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được danh sách người giao hàng.');
+    deliveryPeople = result.data;
+    senderPicker.replaceChildren(
+      new Option('Chọn người giao hàng', ''),
+      ...deliveryPeople.map(person => new Option(person.name, String(person.id))),
+    );
+  } catch (error) {
+    notify(error.message || 'Không thể kết nối cơ sở dữ liệu.');
+  }
+}
+
+senderPicker.addEventListener('change', event => {
+  const person = deliveryPeople.find(item => item.id === Number(event.target.value));
+  senderNameInput.value = person?.name || '';
+  senderAddressInput.value = person?.address || '';
+});
+
+const deliveryPersonNameInput = document.querySelector('#deliveryPersonName');
+const deliveryPersonAddressInput = document.querySelector('#deliveryPersonAddress');
+const saveDeliveryPersonButton = document.querySelector('#saveDeliveryPerson');
+
+document.querySelector('#openDeliveryPersonDialog').addEventListener('click', () => {
+  deliveryPersonNameInput.value = '';
+  deliveryPersonAddressInput.value = '';
+  deliveryPersonMessage.hidden = true;
+  deliveryPersonMessage.textContent = '';
+  deliveryPersonDialog.showModal();
+  deliveryPersonNameInput.focus();
+});
+document.querySelector('#closeDeliveryPersonDialog').addEventListener('click', () => deliveryPersonDialog.close());
+document.querySelector('#cancelDeliveryPersonDialog').addEventListener('click', () => deliveryPersonDialog.close());
+
+async function saveDeliveryPerson() {
+  const name = deliveryPersonNameInput.value.trim();
+  const address = deliveryPersonAddressInput.value.trim();
+  if (!name) {
+    deliveryPersonMessage.textContent = 'Vui lòng nhập tên người giao hàng.';
+    deliveryPersonMessage.hidden = false;
+    deliveryPersonNameInput.focus();
+    return;
+  }
+  if (!address) {
+    deliveryPersonMessage.textContent = 'Vui lòng nhập địa chỉ người giao hàng.';
+    deliveryPersonMessage.hidden = false;
+    deliveryPersonAddressInput.focus();
+    return;
+  }
+
+  deliveryPersonMessage.hidden = true;
+  saveDeliveryPersonButton.disabled = true;
+  saveDeliveryPersonButton.textContent = 'Đang lưu...';
+  try {
+    const response = await fetch(apiUrl('/api/delivery-people'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, address }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) {
+      const detail = result.error || `Máy chủ trả về HTTP ${response.status}.`;
+      throw new Error(`Không thể lưu người giao hàng: ${detail}`);
+    }
+    await loadDeliveryPeople();
+    senderPicker.value = String(result.data.id);
+    senderPicker.dispatchEvent(new Event('change'));
+    deliveryPersonDialog.close();
+    notify('Đã lưu người giao hàng.');
+  } catch (error) {
+    deliveryPersonMessage.textContent = error.message || 'Không thể kết nối cơ sở dữ liệu.';
+    deliveryPersonMessage.hidden = false;
+  } finally {
+    saveDeliveryPersonButton.disabled = false;
+    saveDeliveryPersonButton.textContent = 'Lưu';
+  }
+}
+
+saveDeliveryPersonButton.addEventListener('click', saveDeliveryPerson);
+deliveryPersonForm.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    saveDeliveryPerson();
+  }
 });
 
 function activeReportTable() {
@@ -273,6 +388,92 @@ document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 });
 
+function cellValue(row, index) {
+  return row.cells[index]?.textContent.trim() || '';
+}
+
+function collectReceiptItems() {
+  return rows().map(row => ({
+    itemCode: cellValue(row, 2),
+    itemName: cellValue(row, 3),
+    ecusItemCode: cellValue(row, 4),
+    warehouseCode: cellValue(row, 5),
+    debitAccount: cellValue(row, 6),
+    creditAccount: cellValue(row, 7),
+    unit: cellValue(row, 8),
+    quantity: parseTableNumber(cellValue(row, 9)),
+    unitPrice: parseTableNumber(cellValue(row, 10)),
+  })).filter(item => Object.values(item).some(value => value !== '' && value !== 0));
+}
+
+function receiptPayload() {
+  return {
+    deliveryPersonId: senderPicker.value,
+    transporterName: document.querySelector('#transporterName').value,
+    description: document.querySelector('#receiptDescription').value,
+    warehouseCode: document.querySelector('#warehousePicker').value,
+    productCode: document.querySelector('#productCode').value,
+    customsDeclarationNo: document.querySelector('#customsDeclarationNo').value,
+    customsDeclarationDate: document.querySelector('#customsDeclarationDate').value,
+    contractNo: document.querySelector('#contractNo').value,
+    contractDate: document.querySelector('#contractDate').value,
+    invoiceNo: document.querySelector('#invoiceNo').value,
+    invoiceDate: document.querySelector('#invoiceDate').value,
+    voucherNo: document.querySelector('#voucherNo').value,
+    voucherDate: document.querySelector('#voucherDate').value,
+    originalVoucherNo: document.querySelector('#originalVoucherNo').value,
+    originalVoucherDate: document.querySelector('#originalVoucherDate').value,
+    exchangeRate: exchangeRateInput.value,
+    currency: currencySelect.value,
+    receiptType: document.querySelector('#voucherType').value,
+    itemType: document.querySelector('#goodsType').value,
+    isSelfSupplied: document.querySelector('#isSelfSupplied').checked,
+    items: collectReceiptItems(),
+  };
+}
+
+async function saveReceipt() {
+  if (document.querySelector('.page').dataset.documentType !== 'in') {
+    notify('Chức năng này hiện chỉ áp dụng cho phiếu nhập kho.');
+    return;
+  }
+
+  const payload = receiptPayload();
+  if (!payload.deliveryPersonId) {
+    notify('Vui lòng chọn người giao hàng.');
+    senderPicker.focus();
+    return;
+  }
+  if (!payload.voucherNo.trim() || !payload.voucherDate) {
+    notify('Vui lòng nhập số và ngày chứng từ.');
+    return;
+  }
+  if (!payload.items.length) {
+    notify('Vui lòng nhập ít nhất một dòng hàng.');
+    return;
+  }
+
+  const saveButton = document.querySelector('#saveReceipt');
+  saveButton.disabled = true;
+  saveButton.textContent = 'Đang lưu...';
+  try {
+    const response = await fetch(apiUrl('/api/inventory-receipts'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không thể lưu phiếu nhập kho.');
+    document.querySelector('#receiptStatus').textContent = 'Đã lưu phiếu';
+    notify(`Đã lưu phiếu ${result.data.voucherNo} vào cơ sở dữ liệu.`);
+  } catch (error) {
+    notify(error.message || 'Không thể kết nối cơ sở dữ liệu.');
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = 'Lưu phiếu nhập';
+  }
+}
+
 tableBody.addEventListener('input', recalculate);
 tableBody.addEventListener('focusin', event => {
   const row = event.target.closest('.item-row');
@@ -280,6 +481,7 @@ tableBody.addEventListener('focusin', event => {
 });
 
 document.querySelector('#copyRow').addEventListener('click', copyRow);
+document.querySelector('#saveReceipt').addEventListener('click', saveReceipt);
 document.querySelector('#exitBtn').addEventListener('click', () => notify('Đã đóng cửa sổ phiếu nhập kho.'));
 document.querySelector('#searchBtn').addEventListener('click', () => notify('Chức năng tìm chứng từ đang sẵn sàng kết nối dữ liệu.'));
 document.querySelector('#createVoucher').addEventListener('click', () => {
@@ -287,6 +489,7 @@ document.querySelector('#createVoucher').addEventListener('click', () => {
   notify(`Chức năng tạo phiếu ${name} kho gộp đang sẵn sàng kết nối dữ liệu.`);
 });
 document.querySelector('#helpLink').addEventListener('click', event => { event.preventDefault(); notify('F5: copy dòng · F8: xóa dòng · F11: xóa tất cả.'); });
+loadDeliveryPeople();
 
 document.addEventListener('keydown', event => {
   if (event.key === 'F1') { event.preventDefault(); document.querySelector('#helpLink').click(); }
