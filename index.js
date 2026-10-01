@@ -122,7 +122,7 @@ const pagePresets = {
     headers: [
       '▧',
       'STT',
-      'Mã hàng',
+      'Mã SP',
       'Tên hàng',
       'Mã hàng ECUS',
       'Kho',
@@ -144,7 +144,7 @@ const pagePresets = {
     headers: [
       '▧',
       'STT',
-      'Mã hàng',
+      'Mã SP',
       'Tên hàng',
       'Mã hàng ECUS',
       'Đơn vị tính',
@@ -161,6 +161,23 @@ const pagePresets = {
 function setOptions(select, labels, selected) {
   select.replaceChildren(...labels.map(label => new Option(label, label)))
   select.value = selected
+}
+
+function reorderItemColumns(fromType, toType) {
+  if (fromType === toType) return
+
+  rows().forEach(row => {
+    const cells = row.cells
+    const values = [5, 6, 7, 8].map(index => cells[index].textContent)
+    const reordered =
+      toType === 'out'
+        ? [values[3], values[0], values[1], values[2]]
+        : [values[1], values[2], values[3], values[0]]
+
+    reordered.forEach((value, index) => {
+      cells[index + 5].textContent = value
+    })
+  })
 }
 
 const currencySelect = document.querySelector('#currencyCode')
@@ -253,7 +270,10 @@ function changePage(page) {
     return
   }
   const config = pagePresets[page]
-  if (previousType && previousType !== page) currentSavedId = null
+  if (previousType && previousType !== page) {
+    reorderItemColumns(previousType, page)
+    currentSavedId = null
+  }
   document.querySelector('.titlebar strong').textContent = config.title
   document.querySelector('.general-box .form-row span').innerHTML =
     `${config.receiver} <b>*</b>`
@@ -416,6 +436,271 @@ function activeReportTable() {
   )
 }
 
+function savedVoucherField(record, index, key) {
+  if (record.reportFields?.[key] !== undefined) return record.reportFields[key]
+  const fields = record.fields || []
+  const byId = fields.find(field => field.id === key || field.id === reportFieldIds[key])
+  if (byId) return byId.value || ''
+
+  const indexedValue = fields[index]?.value || ''
+  if (key === 'warehouseCode' && !Object.hasOwn(warehouseNames, indexedValue)) {
+    return fields.map(field => field.value || '').find(value => Object.hasOwn(warehouseNames, value)) || indexedValue
+  }
+  if (key === 'contractNo' && !/^HD/i.test(indexedValue)) {
+    return fields.map(field => field.value || '').find(value => /^HD/i.test(value)) || indexedValue
+  }
+  if (key === 'goodsType' && !/nguyên liệu|thành phẩm|sản phẩm|công cụ|thiết bị|hàng mẫu/i.test(indexedValue)) {
+    return fields.map(field => field.value || '').find(value => /nguyên liệu|thành phẩm|sản phẩm|công cụ|thiết bị|hàng mẫu/i.test(value)) || indexedValue
+  }
+  if (key === 'voucherDate') {
+    const isDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value)
+    const voucherNumber = fields[14]?.value || ''
+    if (/^(PN|PX)/i.test(voucherNumber) && isDate(fields[15]?.value || ''))
+      return fields[15].value
+    if (isDate(fields[14]?.value || '')) return fields[14].value
+    if (isDate(indexedValue)) return indexedValue
+    return fields.slice(12).map(field => field.value || '').find(isDate) || indexedValue
+  }
+  return indexedValue
+}
+
+const reportFieldIds = {
+  warehouseCode: 'warehousePicker',
+  productCode: 'productCode',
+  contractNo: 'contractNo',
+  voucherDate: 'voucherDate',
+  goodsType: 'goodsType',
+  description: 'receiptDescription',
+}
+
+function savedVoucherItems(record) {
+  const outbound = record.type === 'out'
+  return (record.rows || []).map(cells => ({
+    code: String(cells[2] || '').trim(),
+    name: String(cells[3] || '').trim(),
+    warehouse: String(cells[outbound ? 6 : 5] || '').trim(),
+    unit: String(cells[outbound ? 5 : 8] || '').trim(),
+    quantity: parseTableNumber(cells[9]),
+    unitPrice: parseTableNumber(cells[10]),
+  })).filter(item => item.code || item.name)
+}
+
+function buildInventoryMovements(form) {
+  const to = String(form.get('toDate') || '')
+  const selectedWarehouse = String(form.get('warehouse') || '')
+  const selectedCategory = String(form.get('goodsCategory') || '')
+  const selectedContract = String(form.get('contract') || '').trim()
+  const itemQuery = String(form.get('item') || '').trim().toLocaleLowerCase('vi')
+  const productQuery = String(form.get('productCode') || '').trim().toLocaleLowerCase('vi')
+  const warehouseName = warehouseNames[selectedWarehouse] || ''
+  const categoryAliases = {
+    'Nguyên liệu': ['nguyen lieu'],
+    'Sản phẩm': ['san pham', 'thanh pham'],
+    'Thiết bị': ['thiet bi', 'cong cu dung cu'],
+    'Hàng mẫu': ['hang mau'],
+  }
+  const normalize = value => String(value || '')
+    .trim()
+    .toLocaleLowerCase('vi')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+  const includesQuery = (value, query) => !query || normalize(value).includes(query)
+  const vouchers = readVouchers()
+  const movements = []
+
+  vouchers.forEach(record => {
+    if (!['in', 'out'].includes(record.type)) return
+    const voucherDate = String(savedVoucherField(record, 15, 'voucherDate') || '')
+    if (!voucherDate || (to && voucherDate > to)) return
+
+    const voucherWarehouse = String(savedVoucherField(record, 5, 'warehouseCode') || '')
+    const contract = String(savedVoucherField(record, 12, 'contractNo') || '')
+    const goodsType = String(savedVoucherField(record, 21, 'goodsType') || '')
+    if (selectedWarehouse && normalize(voucherWarehouse) !== normalize(selectedWarehouse)) return
+    if (selectedContract && !normalize(contract).includes(normalize(selectedContract))) return
+    if (selectedCategory !== 'Xuất tất cả') {
+      const aliases = categoryAliases[selectedCategory] || [normalize(selectedCategory)]
+      if (!aliases.some(alias => normalize(goodsType).includes(alias))) return
+    }
+
+    savedVoucherItems(record).forEach(item => {
+      if (!includesQuery(item.code, productQuery) && !includesQuery(item.name, productQuery)) return
+      if (!includesQuery(item.code, itemQuery) && !includesQuery(item.name, itemQuery)) return
+      if (selectedWarehouse && item.warehouse &&
+        normalize(item.warehouse) !== normalize(selectedWarehouse) &&
+        normalize(item.warehouse) !== normalize(warehouseName) &&
+        !normalize(item.warehouse).includes(normalize(selectedWarehouse))) return
+      movements.push({
+        ...item,
+        type: record.type,
+        voucherNo: record.number || savedVoucherField(record, 14, 'voucherNo'),
+        voucherDate,
+        description: String(savedVoucherField(record, 4, 'description') || ''),
+        contract,
+      })
+    })
+  })
+
+  return movements.sort((a, b) =>
+    a.code.localeCompare(b.code, 'vi') ||
+    a.voucherDate.localeCompare(b.voucherDate) ||
+    (a.type === b.type ? a.voucherNo.localeCompare(b.voucherNo) : a.type === 'out' ? -1 : 1)
+  )
+}
+
+function renderInventoryDetail(movements, from) {
+  const table = document.querySelector('table[aria-label="Bảng thẻ kho chi tiết"]')
+  const body = table.tBodies[0]
+  body.replaceChildren()
+  if (!movements.some(entry => !from || entry.voucherDate >= from)) {
+    const row = body.insertRow()
+    const cell = row.insertCell()
+    cell.colSpan = 10
+    cell.textContent = 'Không có chứng từ phù hợp với điều kiện lọc.'
+    return
+  }
+
+  const products = new Map()
+  movements.forEach(movement => {
+    const key = `${movement.code}\u0000${movement.name}`
+    if (!products.has(key)) products.set(key, [])
+    products.get(key).push(movement)
+  })
+  const formatNumber = value => value ? Math.abs(value).toLocaleString('vi-VN') : ''
+  const formatDate = value => value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN')
+    : ''
+  let rowNumber = 0
+
+  products.forEach((allEntries, key) => {
+    const entries = allEntries.filter(entry => !from || entry.voucherDate >= from)
+    if (!entries.length) return
+    const [code, name] = key.split('\u0000')
+    const productRow = body.insertRow()
+    productRow.className = 'product-row'
+    const productCell = productRow.insertCell()
+    productCell.colSpan = 10
+    productCell.innerHTML = '<strong>Mã hàng: </strong><span></span>　<strong>Tên hàng: </strong><span></span>'
+    productCell.querySelectorAll('span')[0].textContent = code
+    productCell.querySelectorAll('span')[1].textContent = name
+
+    let balance = allEntries
+      .filter(entry => from && entry.voucherDate < from)
+      .reduce((sum, entry) => sum + (entry.type === 'in' ? entry.quantity : -entry.quantity), 0)
+    const openingRow = body.insertRow()
+    openingRow.className = 'opening-row'
+    rowNumber += 1
+    ;[
+      rowNumber,
+      '',
+      '',
+      '',
+      '(Số tồn đầu kỳ)',
+      '',
+      '',
+      '',
+      balance < 0 ? `(${formatNumber(balance)})` : formatNumber(balance),
+      '',
+    ].forEach(value => {
+      const cell = openingRow.insertCell()
+      cell.textContent = value
+    })
+    entries.forEach(entry => {
+      const amount = entry.type === 'in' ? entry.quantity : -entry.quantity
+      balance += amount
+      rowNumber += 1
+      const row = body.insertRow()
+      const values = [
+        rowNumber,
+        formatDate(entry.voucherDate),
+        entry.type === 'in' ? entry.voucherNo : '',
+        entry.type === 'out' ? entry.voucherNo : '',
+        entry.description,
+        formatDate(entry.voucherDate),
+        entry.type === 'in' ? formatNumber(entry.quantity) : '',
+        entry.type === 'out' ? formatNumber(entry.quantity) : '',
+        balance < 0 ? `(${formatNumber(balance)})` : formatNumber(balance),
+        '',
+      ]
+      values.forEach(value => {
+        const cell = row.insertCell()
+        cell.textContent = value
+      })
+    })
+    const subtotal = body.insertRow()
+    subtotal.className = 'subtotal-row'
+    const label = subtotal.insertCell()
+    label.colSpan = 6
+    label.textContent = 'Cộng cuối kỳ'
+    const totalIn = entries.filter(entry => entry.type === 'in').reduce((sum, entry) => sum + entry.quantity, 0)
+    const totalOut = entries.filter(entry => entry.type === 'out').reduce((sum, entry) => sum + entry.quantity, 0)
+    ;[totalIn, totalOut, balance, ''].forEach(value => {
+      const cell = subtotal.insertCell()
+      cell.textContent = typeof value === 'number' ? formatNumber(value) : value
+    })
+  })
+}
+
+function renderInventorySummary(movements, from) {
+  const body = document.querySelector('.inventory-ledger').tBodies[0]
+  body.replaceChildren()
+  const products = new Map()
+  movements.forEach(movement => {
+    const key = `${movement.code}\u0000${movement.name}`
+    if (!products.has(key)) products.set(key, [])
+    products.get(key).push(movement)
+  })
+  const format = value => Number(value || 0).toLocaleString('vi-VN')
+  let totals = Array(8).fill(0)
+  let count = 0
+  products.forEach((entries, key) => {
+    const periodEntries = entries.filter(entry => !from || entry.voucherDate >= from)
+    if (!periodEntries.length) return
+    const opening = entries.filter(entry => from && entry.voucherDate < from)
+    const openingQty = opening.reduce((sum, entry) => sum + (entry.type === 'in' ? entry.quantity : -entry.quantity), 0)
+    const openingValue = opening.reduce((sum, entry) => sum + (entry.type === 'in' ? 1 : -1) * entry.quantity * entry.unitPrice, 0)
+    const incoming = periodEntries.filter(entry => entry.type === 'in')
+    const outgoing = periodEntries.filter(entry => entry.type === 'out')
+    const inQty = incoming.reduce((sum, entry) => sum + entry.quantity, 0)
+    const inValue = incoming.reduce((sum, entry) => sum + entry.quantity * entry.unitPrice, 0)
+    const outQty = outgoing.reduce((sum, entry) => sum + entry.quantity, 0)
+    const outValue = outgoing.reduce((sum, entry) => sum + entry.quantity * entry.unitPrice, 0)
+    const endingQty = openingQty + inQty - outQty
+    const endingValue = openingValue + inValue - outValue
+    const [code, name] = key.split('\u0000')
+    const row = body.insertRow()
+    ;[
+      ++count, code, name, periodEntries.find(entry => entry.unit)?.unit || '',
+      openingQty, openingQty ? openingValue / openingQty : 0, openingValue,
+      inQty, inQty ? inValue / inQty : 0, inValue,
+      outQty, outQty ? outValue / outQty : 0, outValue,
+      endingQty, endingQty ? endingValue / endingQty : 0, endingValue,
+    ].forEach(value => {
+      const cell = row.insertCell()
+      cell.textContent = typeof value === 'number' ? format(value) : value
+    })
+    ;[openingQty, openingValue, inQty, inValue, outQty, outValue, endingQty, endingValue]
+      .forEach((value, index) => { totals[index] += value })
+  })
+  if (!count) {
+    const row = body.insertRow()
+    const cell = row.insertCell()
+    cell.colSpan = 16
+    cell.textContent = 'Không có chứng từ phù hợp với điều kiện lọc.'
+    return
+  }
+  const totalRow = body.insertRow()
+  totalRow.className = 'subtotal-row'
+  const label = totalRow.insertCell()
+  label.colSpan = 4
+  label.textContent = 'Cộng'
+  ;[totals[0], '', totals[1], totals[2], '', totals[3], totals[4], '', totals[5], totals[6], '', totals[7]].forEach(value => {
+    const cell = totalRow.insertCell()
+    cell.textContent = typeof value === 'number' ? format(value) : value
+  })
+}
+
 function showInventoryReport(detail = false) {
   const form = new FormData(document.querySelector('#stockReportForm'))
   const from = form.get('fromDate')
@@ -431,14 +716,13 @@ function showInventoryReport(detail = false) {
     value ? new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN') : ''
   document.querySelector('#paperFrom').textContent = displayDate(from)
   document.querySelector('#paperTo').textContent = displayDate(to)
-  document.querySelector('#paperWarehouseName').textContent = warehouse
-  document.querySelector('#paperWarehouseCode').textContent =
-    warehouse === 'Kho thành phẩm'
-      ? 'KHO-TP'
-      : warehouse === 'Kho nguyên liệu'
-        ? 'KHO-NL'
-        : 'KHO-PL'
+  document.querySelector('#paperWarehouseName').textContent =
+    warehouseNames[warehouse] || warehouse
+  document.querySelector('#paperWarehouseCode').textContent = warehouse
   document.querySelector('#paperContract').textContent = contract
+  const movements = buildInventoryMovements(form)
+  renderInventorySummary(movements, from)
+  if (detail) renderInventoryDetail(movements, from)
   const item = form.get('item')?.trim()
   const productCode = form.get('productCode')?.trim()
   document.querySelector('#paperFormCode').textContent =
@@ -672,6 +956,140 @@ document
 document
   .querySelector('#newVoucher')
   .addEventListener('click', () => createVoucher(false))
+const excelFileInput = document.querySelector('#excelFile')
+document.querySelector('#importExcel').addEventListener('click', () => {
+  excelFileInput.value = ''
+  excelFileInput.click()
+})
+
+function normalizeExcelHeader(value) {
+  return String(value ?? '')
+    .trim()
+    .toLocaleLowerCase('vi')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function excelFieldDefinitions() {
+  const outbound = documentType() === 'out'
+  return [
+    { key: 'itemCode', target: 2, aliases: ['masp', 'masanpham', 'mahang', 'mahanghoa', 'itemcode', 'productcode', 'sku'] },
+    { key: 'itemName', target: 3, aliases: ['tenhang', 'tensanpham', 'tenhanghoa', 'tensp', 'itemname', 'productname'] },
+    { key: 'ecusCode', target: 4, aliases: ['mahangecus', 'mahangtheoecus', 'maspecus', 'maecus', 'theoecus', 'ecuscode', 'ecus'] },
+    { key: 'warehouse', target: outbound ? 6 : 5, aliases: ['makho', 'kho', 'warehousecode', 'warehouse'] },
+    { key: 'debitAccount', target: outbound ? 7 : 6, aliases: ['tkno', 'taikhoanno', 'debitaccount'] },
+    { key: 'creditAccount', target: outbound ? 8 : 7, aliases: ['tkco', 'taikhoanco', 'creditaccount'] },
+    { key: 'unit', target: outbound ? 5 : 8, aliases: ['donvitinh', 'dvt', 'unit'] },
+    { key: 'quantity', target: 9, aliases: ['soluong', 'soluongnhap', 'soluongxuat', 'soluongthucnhap', 'soluongthucxuat', 'soluongthucte', 'slthucnhap', 'slthucxuat', 'sl', 'quantity', 'qty'] },
+    { key: 'unitPrice', target: 10, aliases: ['dongia', 'unitprice', 'price'] },
+  ]
+}
+
+function findExcelHeaderIndex(headers, aliases) {
+  const normalizedHeaders = headers.map(normalizeExcelHeader)
+  const normalizedAliases = aliases.map(normalizeExcelHeader)
+  const exactMatch = normalizedHeaders.findIndex(header => normalizedAliases.includes(header))
+  if (exactMatch >= 0) return exactMatch
+  const prefixMatch = normalizedHeaders.findIndex(header =>
+    normalizedAliases.some(alias => header.startsWith(alias))
+  )
+  if (prefixMatch >= 0) return prefixMatch
+  return normalizedHeaders.findIndex(header =>
+    normalizedAliases.some(alias => header.includes(alias))
+  )
+}
+
+function findExcelHeaderRow(data) {
+  const definitions = excelFieldDefinitions()
+  let bestIndex = -1
+  let bestScore = 1
+  data.slice(0, 100).forEach((row, index) => {
+    const score = definitions.filter(field => findExcelHeaderIndex(row, field.aliases) >= 0).length
+    const hasProductIdentity = ['itemCode', 'itemName'].some(key => {
+      const field = definitions.find(item => item.key === key)
+      return findExcelHeaderIndex(row, field.aliases) >= 0
+    })
+    if (hasProductIdentity && score > bestScore) {
+      bestIndex = index
+      bestScore = score
+    }
+  })
+  return bestIndex
+}
+
+function excelColumnMap(headers) {
+  return Object.fromEntries(
+    excelFieldDefinitions().map(field => [
+      field.target,
+      findExcelHeaderIndex(headers, field.aliases),
+    ])
+  )
+}
+
+function defaultExcelColumnMap() {
+  return Object.fromEntries(
+    pagePresets[documentType()].headers.slice(2, 11).map((header, index) => [index + 2, index])
+  )
+}
+
+function rowHasItemData(row) {
+  return [...row.cells].slice(2, 11).some(cell => cell.textContent.trim())
+}
+
+async function importExcelFile(file) {
+  if (!file) return
+  if (!window.XLSX) {
+    notify('Không tải được thư viện Excel. Hãy mở trang qua máy chủ kho đang chạy.')
+    return
+  }
+  try {
+    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellText: true })
+    const firstSheetName = workbook.SheetNames.find(name => workbook.Sheets[name]?.['!ref'])
+    const firstSheet = firstSheetName ? workbook.Sheets[firstSheetName] : null
+    if (!firstSheet) throw new Error('File Excel không có trang tính để đọc.')
+    const data = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '', raw: false })
+    const headerRowIndex = findExcelHeaderRow(data)
+    const columnMap = headerRowIndex >= 0
+      ? excelColumnMap(data[headerRowIndex])
+      : defaultExcelColumnMap()
+    const dataRows = headerRowIndex >= 0 ? data.slice(headerRowIndex + 1) : data
+    const importedRows = dataRows
+      .filter(source => [2, 3].some(target => {
+        const sourceIndex = columnMap[target]
+        return sourceIndex >= 0 && String(source[sourceIndex] ?? '').trim()
+      }))
+    if (!importedRows.length) throw new Error('Không tìm thấy dòng hàng trong file Excel.')
+
+    const currentRows = rows()
+    const useBlankInitialRow = currentRows.length === 1 && !rowHasItemData(currentRows[0])
+    importedRows.forEach((source, rowIndex) => {
+      let row
+      if (useBlankInitialRow && rowIndex === 0) {
+        row = currentRows[0]
+      } else {
+        row = currentRows.at(-1).cloneNode(true)
+        row.querySelectorAll('[contenteditable="true"]').forEach(cell => { cell.textContent = '' })
+        row.querySelector('.amount').textContent = ''
+        tableBody.append(row)
+      }
+      Object.entries(columnMap).forEach(([target, sourceIndex]) => {
+        if (sourceIndex >= 0 && source[sourceIndex] !== undefined) {
+          row.cells[Number(target)].textContent = String(source[sourceIndex]).trim()
+        }
+      })
+    })
+    recalculate()
+    notify(`Đã nhập ${importedRows.length} dòng hàng từ ${file.name}.`)
+  } catch (error) {
+    notify(error.message || 'Không thể đọc file Excel.')
+  }
+}
+
+excelFileInput.addEventListener('change', event => {
+  importExcelFile(event.target.files?.[0])
+})
 document.querySelector('#printVoucher').addEventListener('click', () => {
   document.body.classList.add('printing-voucher')
   window.print()
@@ -725,7 +1143,16 @@ function captureVoucher(status = 'Đã ghi') {
     number: documentNumber(),
     status,
     savedAt: new Date().toISOString(),
+    reportFields: {
+      warehouseCode: document.querySelector('#warehousePicker').value,
+      productCode: document.querySelector('#productCode').value,
+      contractNo: document.querySelector('#contractNo').value,
+      voucherDate: document.querySelector('#voucherDate').value,
+      goodsType: document.querySelector('#goodsType').value,
+      description: document.querySelector('#receiptDescription').value,
+    },
     fields: fieldControls().map(control => ({
+      id: control.id || control.name || '',
       value: control.value,
       checked: control.type === 'checkbox' ? control.checked : undefined,
     })),
@@ -974,6 +1401,10 @@ document.addEventListener('keydown', event => {
   if (event.key === 'F5') {
     event.preventDefault()
     copyRow()
+  }
+  if (event.key === 'F6') {
+    event.preventDefault()
+    excelFileInput.click()
   }
   if (event.key === 'F8') {
     event.preventDefault()
