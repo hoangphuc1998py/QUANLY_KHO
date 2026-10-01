@@ -17,6 +17,20 @@ function apiErrorMessage(error, fallback) {
   return error.message || fallback
 }
 
+async function readApiJson(response, action) {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(
+      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). Máy chủ ở cổng 3000 đang chạy phiên bản cũ; hãy khởi động lại bằng npm start.`
+    )
+  }
+  try {
+    return await response.json()
+  } catch {
+    throw new Error(`Máy chủ trả dữ liệu không hợp lệ khi ${action}.`)
+  }
+}
+
 function notify(message) {
   toast.textContent = message
   toast.classList.add('show')
@@ -1105,7 +1119,7 @@ async function searchDatabaseReceipts(query) {
   const list = document.querySelector('#voucherSearchResults')
   try {
     const response = await fetch(apiUrl(`/api/inventory-receipts?q=${encodeURIComponent(query)}`))
-    const result = await response.json()
+    const result = await readApiJson(response, 'tìm phiếu nhập kho')
     if (!response.ok || !result.success) throw new Error(result.error || 'Không thể tìm chứng từ.')
     const records = result.data || []
     list.replaceChildren()
@@ -1170,9 +1184,7 @@ async function searchDatabaseIssues(query) {
   const list = document.querySelector('#voucherSearchResults')
   try {
     const response = await fetch(apiUrl(`/api/inventory-issues?q=${encodeURIComponent(query)}`))
-    const result = await response.json().catch(() => {
-      throw new Error('Máy chủ dữ liệu chưa hỗ trợ tìm phiếu xuất. Hãy khởi động lại máy chủ bằng lệnh npm start rồi tải lại trang.')
-    })
+    const result = await readApiJson(response, 'tìm phiếu xuất kho')
     if (!response.ok || !result.success) throw new Error(result.error || 'Không thể tìm phiếu xuất.')
     list.replaceChildren()
     if (!result.data?.length) {
@@ -1317,27 +1329,56 @@ document.querySelector('#deleteVoucher').addEventListener('click', () => {
     notify('Đã xóa chứng từ.')
   }
 })
-document.querySelector('#createVoucher').addEventListener('click', () => {
-  const inbound = readVouchers().filter(item => item.type === 'in')
-  if (!inbound.length) {
-    notify('Hãy ghi ít nhất một phiếu nhập kho trước khi tạo phiếu gộp.')
+async function createSplitVouchers() {
+  const button = document.querySelector('#createVoucher')
+  const type = documentType()
+  const items = collectReceiptItems()
+  if (!items.length) {
+    notify('Chưa có dòng hàng để tách phiếu.')
     return
   }
-  changePage('in')
-  createVoucher(false)
-  const combinedRows = inbound
-    .flatMap(record => record.rows || [])
-    .filter(values => values.slice(2, 11).some(value => String(value).trim()))
-  combinedRows.forEach((values, index) => {
-    if (index) copyRow()
-    const row = rows()[index]
-    values.forEach((value, cellIndex) => {
-      if (row.cells[cellIndex]) row.cells[cellIndex].textContent = value
+  if (items.some(item => !item.itemCode.trim())) {
+    notify('Mỗi dòng hàng cần có Mã SP trước khi tách phiếu.')
+    return
+  }
+  const payload = receiptPayload()
+  if (!payload.voucherDate) {
+    notify('Vui lòng nhập ngày chứng từ trước khi tách phiếu.')
+    return
+  }
+  if (type === 'out') {
+    payload.receiverName = document.querySelector('#senderName').value
+    payload.supplierAddress = document.querySelector('#senderAddress').value
+  }
+  button.disabled = true
+  const originalText = button.textContent
+  button.textContent = 'Đang tách và lưu...'
+  try {
+    const response = await fetch(apiUrl('/api/inventory-vouchers/split'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        currentVoucherNo: payload.voucherNo,
+        voucher: payload,
+      }),
     })
-  })
-  recalculate()
-  notify(`Đã gộp ${inbound.length} phiếu nhập đã lưu vào phiếu mới.`)
-})
+    const result = await readApiJson(response, 'tạo phiếu riêng theo Mã SP')
+    if (!response.ok || !result.success)
+      throw new Error(result.error || 'Không thể tạo các phiếu riêng.')
+    const voucherNumbers = result.data.map(item => item.voucherNo)
+    notify(`Đã lưu ${voucherNumbers.length} phiếu riêng vào database: ${voucherNumbers.join(', ')}.`)
+  } catch (error) {
+    notify(apiErrorMessage(error, 'Không thể tách phiếu theo Mã SP.'))
+  } finally {
+    button.disabled = false
+    button.textContent = originalText
+  }
+}
+
+document
+  .querySelector('#createVoucher')
+  .addEventListener('click', createSplitVouchers)
 document.querySelector('#exitBtn').addEventListener('click', () => {
   document.querySelector('.page').classList.add('hidden')
   document.querySelector('.tabs').classList.add('hidden')

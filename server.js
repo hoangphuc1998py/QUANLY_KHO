@@ -519,6 +519,58 @@ app.get('/api/inventory-issues', (req, res) => {
   res.json({ success:true,data:records })
 })
 
+function nextDatabaseVoucherNumber(type, currentVoucherNo) {
+  const prefix = type === 'out' ? 'PX' : 'PN'
+  const table = type === 'out' ? 'inventory_issues' : 'inventory_receipts'
+  const voucherNumbers = db.prepare(`SELECT voucher_no AS voucherNo FROM ${table}`).all()
+  const pattern = new RegExp(`^${prefix}(\\d+)$`, 'i')
+  let maximum = 0
+  for (const { voucherNo } of voucherNumbers) {
+    const match = pattern.exec(String(voucherNo || '').trim())
+    if (match) maximum = Math.max(maximum, Number(match[1]) || 0)
+  }
+  const currentMatch = pattern.exec(String(currentVoucherNo || '').trim())
+  if (currentMatch) maximum = Math.max(maximum, Number(currentMatch[1]) || 0)
+  return `${prefix}${String(maximum + 1).padStart(5, '0')}`
+}
+
+app.post('/api/inventory-vouchers/split', (req, res) => {
+  try {
+    const body = req.body || {}
+    const type = body.type === 'out' ? 'out' : body.type === 'in' ? 'in' : null
+    if (!type) throw new Error('Loại phiếu không hợp lệ.')
+    if (!body.voucher || !Array.isArray(body.voucher.items))
+      throw new Error('Dữ liệu phiếu không hợp lệ.')
+
+    const groups = new Map()
+    for (const item of body.voucher.items) {
+      const itemCode = cleanText(item.itemCode)
+      if (!itemCode) throw new Error('Mỗi dòng hàng cần có Mã SP.')
+      if (!groups.has(itemCode)) groups.set(itemCode, [])
+      groups.get(itemCode).push(item)
+    }
+    if (!groups.size) throw new Error('Phiếu chưa có dòng hàng để tách.')
+
+    const createSplit = db.transaction(() => {
+      let nextNumber = nextDatabaseVoucherNumber(type, body.currentVoucherNo)
+      const created = []
+      for (const [itemCode, items] of groups) {
+        const voucherNo = nextNumber
+        const suffix = Number(voucherNo.slice(2)) + 1
+        nextNumber = `${type === 'out' ? 'PX' : 'PN'}${String(suffix).padStart(5, '0')}`
+        const voucher = { ...body.voucher, voucherNo, items }
+        const saved = type === 'out' ? saveIssue(voucher) : createReceipt(voucher)
+        created.push({ voucherNo: saved.voucherNo, itemCode })
+      }
+      return created
+    })
+
+    res.status(201).json({ success: true, data: createSplit.immediate() })
+  } catch (error) {
+    res.status(422).json({ success: false, error: error.message })
+  }
+})
+
 if (require.main === module) {
   app.listen(3000, () => {
     console.log(

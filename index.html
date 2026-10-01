@@ -113,7 +113,7 @@
                 </div>
                 <span>Số hợp đồng:</span>
                 <div class="input-group">
-                  <input id="contractNo" value="HDGC2019-VN" /><button
+                  <input id="contractNo" placeholder="Nhập số hợp đồng" /><button
                     type="button"
                     class="ellipsis">
                     ...
@@ -510,12 +510,9 @@
                   name="productCode"
                   placeholder="Nhập mã sản phẩm"
               /></label>
-              <label class="report-field wide"
-                ><span>Hợp đồng gia công</span
-                ><select name="contract">
-                  <option>HD01/2019-TSD</option>
-                  <option>HDGC2019-VN</option>
-                </select></label
+              <label class="report-field"
+                ><span>Hợp đồng</span
+                ><input type="text" name="contract" placeholder="Nhập hợp đồng" /></label
               >
             </div>
           </fieldset>
@@ -1111,7 +1108,7 @@
           <label class="report-field"><span>Mã kho</span><select name="warehouse"><option>Kho thành phẩm</option><option>Kho nguyên liệu</option><option>Kho phụ liệu</option></select></label>
           <label class="report-field"><span>Hàng hóa</span><input type="text" name="item"></label>
           <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
-          <label class="report-field wide"><span>Hợp đồng gia công</span><select name="contract"><option>HD01/2019-TSD</option><option>HDGC2019-VN</option></select></label>
+          <label class="report-field"><span>Hợp đồng</span><input type="text" name="contract" placeholder="Nhập hợp đồng"></label>
         </div></fieldset>
         <label class="report-currency"><input type="checkbox" name="foreignCurrency"> In trị giá theo tỉ giá nguyên tệ</label>
         <div class="report-actions"><button type="submit" class="primary-action">⌕ Xem báo cáo tổng hợp</button><button type="button" class="secondary-action" id="detailReportBtn">▤ Báo cáo chi tiết</button><button type="button" class="secondary-action" id="closeReport">◉ Đóng</button></div>
