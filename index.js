@@ -10,6 +10,13 @@ function apiUrl(path) {
   return `${apiBaseUrl}${path}`
 }
 
+function apiErrorMessage(error, fallback) {
+  if (error instanceof TypeError && /fetch/i.test(error.message)) {
+    return 'Không kết nối được máy chủ kho. Hãy chạy lệnh npm start trong thư mục dự án rồi thử lại.'
+  }
+  return error.message || fallback
+}
+
 function notify(message) {
   toast.textContent = message
   toast.classList.add('show')
@@ -107,7 +114,7 @@ document.querySelectorAll('.tab').forEach(tab =>
 const pagePresets = {
   in: {
     title: 'Phiếu nhập kho kế toán (Gia công)',
-    receiver: 'Người giao hàng:',
+    receiver: 'Nhà cung cấp:',
     code: 'PN00002',
     voucherAction: '⟳ Tạo phiếu nhập kho gộp...',
     voucherType: ['Thành phẩm sản xuất', 'Nhập mua hàng', 'Nhập khác'],
@@ -251,12 +258,9 @@ function changePage(page) {
   document.querySelector('.general-box .form-row span').innerHTML =
     `${config.receiver} <b>*</b>`
   document.querySelector('#senderPicker option[value=""]').textContent =
-    page === 'out' ? 'Chọn người nhận hàng' : 'Chọn người giao hàng'
+    page === 'out' ? 'Chọn người nhận hàng' : 'Chọn nhà cung cấp'
   document.querySelector('.voucher').value = config.code
   document.querySelector('#createVoucher').textContent = config.voucherAction
-  document.querySelector('#saveReceipt').disabled = page !== 'in'
-  document.querySelector('#saveReceipt').textContent =
-    page === 'in' ? 'Lưu phiếu nhập' : 'Lưu phiếu xuất'
   setOptions(
     document.querySelector('#voucherType'),
     config.voucherType,
@@ -305,9 +309,7 @@ async function loadDeliveryPeople() {
     const response = await fetch(apiUrl('/api/delivery-people'))
     const result = await response.json()
     if (!response.ok || !result.success)
-      throw new Error(
-        result.error || 'Không tải được danh sách người giao hàng.'
-      )
+      throw new Error(result.error || 'Không tải được danh sách nhà cung cấp.')
     deliveryPeople = result.data
     senderPicker.replaceChildren(
       new Option('Chọn nhà cung cấp', ''),

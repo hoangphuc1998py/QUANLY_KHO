@@ -36,23 +36,23 @@
             <fieldset class="general-box">
               <legend>Thông tin chung</legend>
               <label class="form-row"
-                ><span>Người giao hàng: <b>*</b></span>
+                ><span>Nhà cung cấp: <b>*</b></span>
                 <div class="input-group short">
                   <input
                     id="senderName"
-                    aria-label="Người giao hàng"
-                    placeholder="Chọn từ danh sách"
+                    aria-label="Nhà cung cấp"
+                    placeholder="Chọn nhà cung cấp"
                     readonly /><select
                     id="senderPicker"
                     class="sender-picker"
-                    aria-label="Chọn người giao hàng">
-                    <option value="">Chọn người giao hàng</option></select
+                    aria-label="Chọn nhà cung cấp">
+                    <option value="">Chọn nhà cung cấp</option></select
                   ><button
                     type="button"
                     class="add-delivery-person"
                     id="openDeliveryPersonDialog"
-                    title="Thêm người giao hàng"
-                    aria-label="Thêm người giao hàng">
+                    title="Thêm nhà cung cấp"
+                    aria-label="Thêm nhà cung cấp">
                     +
                   </button>
                 </div></label
@@ -62,7 +62,7 @@
                 ><input
                   id="senderAddress"
                   class="grow"
-                  aria-label="Địa chỉ người giao hàng"
+                  aria-label="Địa chỉ nhà cung cấp"
                   readonly
               /></label>
               <label class="form-row"
@@ -341,7 +341,7 @@
             <div id="deliveryPersonForm">
               <header>
                 <div>
-                  <h2 id="deliveryPersonDialogTitle">Người giao hàng</h2>
+                  <h2 id="deliveryPersonDialogTitle">Nhà cung cấp</h2>
                 </div>
                 <button
                   type="button"
@@ -352,8 +352,8 @@
                 </button>
               </header>
               <label class="delivery-person-field"
-                ><span>Tên người giao hàng</span
-                ><input id="deliveryPersonName" placeholder="Nhập tên người giao hàng" autocomplete="off"
+                ><span>Tên nhà cung cấp</span
+                ><input id="deliveryPersonName" placeholder="Nhập tên nhà cung cấp" autocomplete="off"
               /></label>
               <label class="delivery-person-field"
                 ><span>Địa chỉ</span><input id="deliveryPersonAddress" placeholder="Nhập địa chỉ" autocomplete="street-address"
