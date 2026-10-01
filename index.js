@@ -310,13 +310,13 @@ async function loadDeliveryPeople() {
       )
     deliveryPeople = result.data
     senderPicker.replaceChildren(
-      new Option('Chọn người giao hàng', ''),
+      new Option('Chọn nhà cung cấp', ''),
       ...deliveryPeople.map(
         person => new Option(person.name, String(person.id))
       )
     )
   } catch (error) {
-    notify(error.message || 'Không thể kết nối cơ sở dữ liệu.')
+    notify(apiErrorMessage(error, 'Không thể tải danh sách nhà cung cấp.'))
   }
 }
 
@@ -355,13 +355,13 @@ async function saveDeliveryPerson() {
   const name = deliveryPersonNameInput.value.trim()
   const address = deliveryPersonAddressInput.value.trim()
   if (!name) {
-    deliveryPersonMessage.textContent = 'Vui lòng nhập tên người giao hàng.'
+    deliveryPersonMessage.textContent = 'Vui lòng nhập tên nhà cung cấp.'
     deliveryPersonMessage.hidden = false
     deliveryPersonNameInput.focus()
     return
   }
   if (!address) {
-    deliveryPersonMessage.textContent = 'Vui lòng nhập địa chỉ người giao hàng.'
+    deliveryPersonMessage.textContent = 'Vui lòng nhập địa chỉ nhà cung cấp.'
     deliveryPersonMessage.hidden = false
     deliveryPersonAddressInput.focus()
     return
@@ -379,16 +379,18 @@ async function saveDeliveryPerson() {
     const result = await response.json().catch(() => ({}))
     if (!response.ok || !result.success) {
       const detail = result.error || `Máy chủ trả về HTTP ${response.status}.`
-      throw new Error(`Không thể lưu người giao hàng: ${detail}`)
+      throw new Error(`Không thể lưu nhà cung cấp: ${detail}`)
     }
     await loadDeliveryPeople()
     senderPicker.value = String(result.data.id)
     senderPicker.dispatchEvent(new Event('change'))
     deliveryPersonDialog.close()
-    notify('Đã lưu người giao hàng.')
+    notify('Đã lưu nhà cung cấp.')
   } catch (error) {
-    deliveryPersonMessage.textContent =
-      error.message || 'Không thể kết nối cơ sở dữ liệu.'
+    deliveryPersonMessage.textContent = apiErrorMessage(
+      error,
+      'Không thể lưu nhà cung cấp.'
+    )
     deliveryPersonMessage.hidden = false
   } finally {
     saveDeliveryPersonButton.disabled = false
@@ -620,7 +622,7 @@ async function saveReceipt() {
 
   const payload = receiptPayload()
   if (!payload.deliveryPersonId) {
-    notify('Vui lòng chọn người giao hàng.')
+    notify('Vui lòng chọn nhà cung cấp.')
     senderPicker.focus()
     return
   }
@@ -648,7 +650,7 @@ async function saveReceipt() {
     document.querySelector('#receiptStatus').textContent = 'Đã lưu phiếu'
     notify(`Đã lưu phiếu ${result.data.voucherNo} vào cơ sở dữ liệu.`)
   } catch (error) {
-    notify(error.message || 'Không thể kết nối cơ sở dữ liệu.')
+    notify(apiErrorMessage(error, 'Không thể lưu phiếu nhập kho.'))
   } finally {
     saveButton.disabled = false
     saveButton.textContent = 'Lưu phiếu nhập'
