@@ -130,6 +130,7 @@ loadSelectedCurrencyRate();
 
 function changePage(page) {
   const reportMode = page === 'report';
+  const previousType = document.querySelector('.page').dataset.documentType;
   document.querySelector('#stockReportPage').classList.toggle('hidden', !reportMode);
   document.querySelector('.page').classList.toggle('hidden', reportMode);
   document.querySelector('.tabs').classList.toggle('hidden', reportMode);
@@ -140,8 +141,10 @@ function changePage(page) {
     return;
   }
   const config = pagePresets[page];
+  if (previousType && previousType !== page) currentSavedId = null;
   document.querySelector('.titlebar strong').textContent = config.title;
   document.querySelector('.general-box .form-row span').innerHTML = `${config.receiver} <b>*</b>`;
+  document.querySelector('#senderPicker option[value=""]').textContent = page === 'out' ? 'Chọn người nhận hàng' : 'Chọn người giao hàng';
   document.querySelector('.voucher').value = config.code;
   document.querySelector('#createVoucher').textContent = config.voucherAction;
   setOptions(document.querySelector('#voucherType'), config.voucherType, page === 'out' ? 'Sản xuất' : 'Thành phẩm sản xuất');
@@ -279,13 +282,220 @@ tableBody.addEventListener('focusin', event => {
   if (row) rows().forEach(item => item.classList.toggle('selected', item === row));
 });
 
-document.querySelector('#copyRow').addEventListener('click', copyRow);
-document.querySelector('#exitBtn').addEventListener('click', () => notify('Đã đóng cửa sổ phiếu nhập kho.'));
-document.querySelector('#searchBtn').addEventListener('click', () => notify('Chức năng tìm chứng từ đang sẵn sàng kết nối dữ liệu.'));
-document.querySelector('#createVoucher').addEventListener('click', () => {
-  const name = document.querySelector('.page').dataset.documentType === 'out' ? 'xuất' : 'nhập';
-  notify(`Chức năng tạo phiếu ${name} kho gộp đang sẵn sàng kết nối dữ liệu.`);
+document.querySelector('#copyVoucher').addEventListener('click', () => createVoucher(true));
+document.querySelector('#newVoucher').addEventListener('click', () => createVoucher(false));
+document.querySelector('#printVoucher').addEventListener('click', () => {
+  document.body.classList.add('printing-voucher');
+  window.print();
 });
+window.addEventListener('afterprint', () => document.body.classList.remove('printing-voucher'));
+
+const voucherStoreKey = 'quanlykho-vouchers';
+const voucherSearchDialog = document.querySelector('#voucherSearchDialog');
+const voucherStatus = document.querySelector('.new-status');
+let currentSavedId = null;
+
+function readVouchers() {
+  try {
+    const records = JSON.parse(localStorage.getItem(voucherStoreKey) || '[]');
+    return Array.isArray(records) ? records : [];
+  } catch { return []; }
+}
+
+function writeVouchers(records) {
+  try {
+    localStorage.setItem(voucherStoreKey, JSON.stringify(records));
+    return true;
+  } catch {
+    notify('Không thể lưu phiếu. Bộ nhớ trình duyệt có thể đã đầy.');
+    return false;
+  }
+}
+
+function documentType() { return document.querySelector('.page').dataset.documentType || 'in'; }
+function documentNumber() { return document.querySelector('.voucher').value.trim(); }
+function fieldControls() {
+  return [...document.querySelectorAll('.general-box input, .general-box select, .declaration-box input, .declaration-box select, .document-box input, .document-box select, #otherPage input, #otherPage select')];
+}
+
+function captureVoucher(status = 'Đã ghi') {
+  return {
+    id: currentSavedId || `${documentType()}:${documentNumber()}`,
+    type: documentType(),
+    number: documentNumber(),
+    status,
+    savedAt: new Date().toISOString(),
+    fields: fieldControls().map(control => ({ value: control.value, checked: control.type === 'checkbox' ? control.checked : undefined })),
+    rows: rows().map(row => [...row.cells].map(cell => cell.textContent)),
+    activeTab: document.querySelector('.tab.active')?.dataset.tab || 'general'
+  };
+}
+
+function saveVoucher(status = 'Đã ghi') {
+  const number = documentNumber();
+  if (!number) { notify('Vui lòng nhập số chứng từ trước khi ghi.'); return false; }
+  const record = captureVoucher(status);
+  const records = readVouchers();
+  const index = records.findIndex(item => item.id === record.id || (item.type === record.type && item.number === number));
+  if (index >= 0) records[index] = record;
+  else records.push(record);
+  if (!writeVouchers(records)) return false;
+  currentSavedId = record.id;
+  voucherStatus.textContent = status;
+  notify(status === 'Đã ghi sổ' ? 'Đã ghi sổ chứng từ.' : 'Đã lưu chứng từ trên trình duyệt.');
+  return true;
+}
+
+function nextNumber(type) {
+  const prefix = type === 'out' ? 'PX' : 'PN';
+  const savedMaximum = readVouchers().filter(item => item.type === type).reduce((max, item) => {
+    const number = Number(String(item.number).replace(/^\D+/, ''));
+    return Number.isFinite(number) ? Math.max(max, number) : max;
+  }, 0);
+  const current = documentType() === type ? Number(documentNumber().replace(/^\D+/, '')) || 0 : 0;
+  return `${prefix}${String(Math.max(savedMaximum, current) + 1).padStart(5, '0')}`;
+}
+
+function createVoucher(copyCurrent) {
+  const type = documentType();
+  const copiedRecord = copyCurrent ? captureVoucher('Nháp') : null;
+  const newNumber = nextNumber(type);
+  const controls = fieldControls();
+  controls.forEach(control => {
+    if (control.type === 'checkbox') control.checked = false;
+    else control.value = '';
+  });
+  document.querySelector('#senderPicker').value = '';
+  document.querySelector('#warehousePicker').value = '';
+  document.querySelector('#currencyCode').value = 'VND';
+  exchangeRateInput.value = '1';
+  exchangeRateInput.readOnly = true;
+  document.querySelector('#voucherType').value = type === 'out' ? 'Sản xuất' : 'Thành phẩm sản xuất';
+  document.querySelector('#goodsType').value = type === 'out' ? 'Sản phẩm' : 'Nguyên liệu';
+  document.querySelector('.voucher').value = newNumber;
+  const firstRow = rows()[0];
+  tableBody.replaceChildren(firstRow);
+  firstRow.querySelectorAll('[contenteditable="true"]').forEach(cell => cell.textContent = '');
+  firstRow.querySelector('.amount').textContent = '';
+  if (copyCurrent) {
+    copiedRecord.rows.forEach((values, index) => {
+      if (index > 0) copyRow();
+      const row = rows()[index];
+      values.forEach((value, cellIndex) => { if (row.cells[cellIndex]) row.cells[cellIndex].textContent = value; });
+    });
+  }
+  currentSavedId = null;
+  voucherStatus.textContent = 'Nhập mới phiếu';
+  document.querySelector('#closedState').classList.add('hidden');
+  document.querySelector('.page').classList.remove('hidden');
+  recalculate();
+  notify(copyCurrent ? 'Đã sao chép phiếu thành chứng từ mới.' : 'Đã tạo phiếu mới.');
+}
+
+function loadVoucher(record) {
+  changePage(record.type);
+  fieldControls().forEach((control, index) => {
+    const field = record.fields[index];
+    if (!field) return;
+    control.value = field.value;
+    if (control.type === 'checkbox') control.checked = Boolean(field.checked);
+  });
+  tableBody.replaceChildren();
+  (record.rows || []).forEach(values => {
+    const row = document.createElement('tr');
+    row.className = 'item-row';
+    values.forEach((value, index) => {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      if (index >= 2 && index <= 10 && index !== 11) cell.contentEditable = 'true';
+      if (index === 0) cell.className = 'row-marker';
+      if (index === 9) cell.className = 'quantity';
+      if (index === 10) cell.className = 'price';
+      if (index === 11) cell.className = 'amount';
+      row.append(cell);
+    });
+    tableBody.append(row);
+  });
+  if (!rows().length) copyRow();
+  currentSavedId = record.id;
+  voucherStatus.textContent = record.status || 'Đã ghi';
+  const tab = document.querySelector(`.tab[data-tab="${record.activeTab || 'general'}"]`);
+  tab?.click();
+  voucherSearchDialog.close();
+  recalculate();
+  notify(`Đã mở chứng từ ${record.number}.`);
+}
+
+function renderVoucherSearch() {
+  const query = document.querySelector('#voucherSearchInput').value.trim().toLocaleLowerCase('vi');
+  const list = document.querySelector('#voucherSearchResults');
+  const records = readVouchers().filter(item => item.type === documentType() && `${item.number} ${item.fields?.[0]?.value || ''}`.toLocaleLowerCase('vi').includes(query));
+  list.replaceChildren();
+  if (!records.length) {
+    list.textContent = 'Không tìm thấy chứng từ đã lưu.';
+    list.className = 'voucher-search-results empty';
+    return;
+  }
+  list.className = 'voucher-search-results';
+  records.sort((a, b) => b.savedAt.localeCompare(a.savedAt)).forEach(record => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.innerHTML = `<strong></strong><span></span><small></small>`;
+    button.querySelector('strong').textContent = record.number;
+    button.querySelector('span').textContent = record.fields?.[0]?.value || 'Chưa nhập người giao/nhận';
+    button.querySelector('small').textContent = record.status || 'Đã ghi';
+    button.addEventListener('click', () => loadVoucher(record));
+    list.append(button);
+  });
+}
+
+document.querySelector('#saveVoucher').addEventListener('click', () => saveVoucher());
+document.querySelector('#postVoucher').addEventListener('click', () => saveVoucher('Đã ghi sổ'));
+document.querySelector('#searchBtn').addEventListener('click', () => {
+  document.querySelector('#voucherSearchInput').value = '';
+  renderVoucherSearch();
+  voucherSearchDialog.showModal();
+  document.querySelector('#voucherSearchInput').focus();
+});
+document.querySelector('#voucherSearchInput').addEventListener('input', renderVoucherSearch);
+document.querySelector('#closeVoucherSearch').addEventListener('click', () => voucherSearchDialog.close());
+document.querySelector('#deleteVoucher').addEventListener('click', () => {
+  const records = readVouchers();
+  const index = records.findIndex(item => item.id === currentSavedId || (item.type === documentType() && item.number === documentNumber()));
+  if (index < 0) { notify('Phiếu hiện tại chưa được lưu nên không có dữ liệu để xóa.'); return; }
+  if (!window.confirm(`Xóa chứng từ ${records[index].number}?`)) return;
+  records.splice(index, 1);
+  if (writeVouchers(records)) {
+    currentSavedId = null;
+    createVoucher(false);
+    notify('Đã xóa chứng từ.');
+  }
+});
+document.querySelector('#createVoucher').addEventListener('click', () => {
+  const inbound = readVouchers().filter(item => item.type === 'in');
+  if (!inbound.length) { notify('Hãy ghi ít nhất một phiếu nhập kho trước khi tạo phiếu gộp.'); return; }
+  changePage('in');
+  createVoucher(false);
+  const combinedRows = inbound.flatMap(record => record.rows || []).filter(values => values.slice(2, 11).some(value => String(value).trim()));
+  combinedRows.forEach((values, index) => {
+    if (index) copyRow();
+    const row = rows()[index];
+    values.forEach((value, cellIndex) => { if (row.cells[cellIndex]) row.cells[cellIndex].textContent = value; });
+  });
+  recalculate();
+  notify(`Đã gộp ${inbound.length} phiếu nhập đã lưu vào phiếu mới.`);
+});
+document.querySelector('#exitBtn').addEventListener('click', () => {
+  document.querySelector('.page').classList.add('hidden');
+  document.querySelector('.tabs').classList.add('hidden');
+  document.querySelector('#closedState').classList.remove('hidden');
+});
+document.querySelector('#reopenVoucher').addEventListener('click', () => {
+  document.querySelector('.page').classList.remove('hidden');
+  document.querySelector('.tabs').classList.remove('hidden');
+  document.querySelector('#closedState').classList.add('hidden');
+});
+changePage('in');
 document.querySelector('#helpLink').addEventListener('click', event => { event.preventDefault(); notify('F5: copy dòng · F8: xóa dòng · F11: xóa tất cả.'); });
 
 document.addEventListener('keydown', event => {

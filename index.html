@@ -21,7 +21,7 @@
             <label class="form-row"><span>Người vận chuyển:</span><input class="grow"></label>
             <label class="form-row"><span>Diễn giải:</span><input class="grow"></label>
             <label class="form-row"><span>Mã kho:</span><div class="input-group warehouse"><select id="warehousePicker" class="warehouse-picker" aria-label="Chọn kho"><option value="">Chọn kho</option><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></div><input id="warehouseName" class="grow" aria-label="Tên kho"></label>
-            <label class="form-row"><span>Mã SP:</span><input id="productCode" class="grow" aria-label="Mã sản phẩm"></label>
+            <label class="form-row"><span>Mã SP:</span><input id="productCode" class="grow" aria-label="Mã sản phẩm" placeholder="Nhập mã sản phẩm"></label>
           </fieldset>
           <fieldset class="declaration-box"><legend>Thông tin tờ khai</legend>
             <div class="declaration-grid">
@@ -66,6 +66,12 @@
         <div class="table-wrap"><table id="itemsTable"><thead><tr><th class="icon-head">▧</th><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Mã hàng ECUS</th><th>Kho</th><th>TK Nợ</th><th>TK Có</th><th>Đơn vị tính</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead><tbody><tr class="item-row"><td class="row-marker">✳</td><td></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true" class="quantity"></td><td contenteditable="true" class="price"></td><td class="amount"></td></tr></tbody></table></div>
       </section>
       <footer class="totals"><span>Tổng lượng:</span><strong id="totalQty">0</strong><span>Tổng tiền hàng:</span><strong id="totalAmount">0</strong></footer>
+      <footer class="actions" aria-label="Chức năng chứng từ">
+        <button class="soft" id="createVoucher">⟳ Tạo phiếu nhập kho gộp...</button>
+        <span class="spacer"></span><button id="copyVoucher">▤ Copy</button><button id="printVoucher">♟ In</button><button id="newVoucher">⊕ Thêm Mới</button>
+        <button id="searchBtn">⌕ Tìm CT...</button><button id="saveVoucher">▣ Ghi</button><button id="postVoucher">☑ Ghi sổ</button>
+        <button id="deleteVoucher">× Xóa</button><button class="exit" id="exitBtn">⊠ Đóng</button>
+      </footer>
     </section>
     <section class="report-page hidden" id="stockReportPage" aria-labelledby="reportTitle">
       <div class="report-heading"><div><h1 id="reportTitle">Nhập xuất tồn (Gia công)</h1><p>Chọn điều kiện lọc để xem số liệu nhập, xuất và tồn kho.</p></div></div>
@@ -153,18 +159,16 @@
           <footer class="paper-signatures"><div><strong>Người ghi sổ</strong><em>(Ký, họ tên)</em></div><div><strong>Kế toán trưởng</strong><em>(Ký, họ tên)</em></div><div><strong>Giám đốc</strong><em>(Ký, họ tên, đóng dấu)</em></div></footer>
         </article>
       </section>
-      <footer class="actions">
-        <button class="soft" id="createVoucher">
-          ⟳ Tạo phiếu nhập kho gộp...</button
-        ><span class="spacer"></span><button id="copyRow">▤ Copy</button
-        ><button disabled>♟ In</button><button disabled>⊕ Thêm Mới</button
-        ><button id="searchBtn">⌕ Tìm CT...</button
-        ><button disabled>▣ Ghi</button><button disabled>☑ Ghi sổ</button
-        ><button disabled>× Xóa</button
-        ><button class="exit" id="exitBtn">⊠ Đóng</button>
-      </footer>
+    </section>
+      <dialog id="voucherSearchDialog" class="voucher-search-dialog">
+        <header><div><h2>Tìm chứng từ</h2><p>Tìm phiếu đã lưu trên trình duyệt này.</p></div><button type="button" id="closeVoucherSearch" aria-label="Đóng">×</button></header>
+        <input id="voucherSearchInput" type="search" placeholder="Nhập số chứng từ hoặc người giao/nhận">
+        <div id="voucherSearchResults" class="voucher-search-results"></div>
+      </dialog>
+      <section id="closedState" class="closed-state hidden"><strong>Phiếu đã đóng</strong><span>Bạn có thể mở lại phiếu để tiếp tục làm việc.</span><button type="button" id="reopenVoucher">Mở lại phiếu</button></section>
       <div class="toast" id="toast" role="status"></div>
     </main>
+    <footer class="site-copyright">© ANHUCO. All rights reserved.</footer>
     <script src="index.js"></script>
   </body>
 </html>
