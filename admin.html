@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f3f6fb" />
+    <title>Đăng nhập quản trị · ANHUCO</title>
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <main class="login-layout">
+      <section class="login-card" aria-labelledby="loginTitle">
+        <div class="brand-mark" aria-hidden="true">A</div>
+        <p class="eyebrow">ANHUCO · QUẢN LÝ KHO</p>
+        <h1 id="loginTitle">Đăng nhập quản trị</h1>
+        <p class="intro" id="loginIntro">Đăng nhập để tiếp tục vào hệ thống.</p>
+        <form id="loginForm" autocomplete="on">
+          <label for="username">Tên đăng nhập</label>
+          <input id="username" name="username" autocomplete="username" required minlength="3" maxlength="40" />
+          <label for="password">Mật khẩu</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <p class="message" id="loginMessage" role="alert" aria-live="polite"></p>
+          <button id="submitLogin" type="submit">Đăng nhập</button>
+        </form>
+        <p class="security-note hidden" id="setupNote">Đây là lần đầu thiết lập. Hãy tạo tài khoản quản trị và đặt mật khẩu có ít nhất 12 ký tự.</p>
+        <footer>© ANHUCO</footer>
+      </section>
+    </main>
+    <script src="/admin.js"></script>
+  </body>
+</html>

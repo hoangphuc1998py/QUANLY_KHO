@@ -1,6 +1,7 @@
 const tableBody = document.querySelector('#itemsTable tbody')
 const toast = document.querySelector('#toast')
 let toastTimer
+let currentUser = null
 // The UI may be opened from a preview server or directly from the HTML file.
 // In both cases, keep API requests pointed at the Express server.
 const apiBaseUrl =
@@ -251,13 +252,25 @@ function importExcelRows(matrix) {
   if (!hasExistingItems) tableBody.replaceChildren()
   for (const item of imported) {
     const row = template.cloneNode(true)
-    const values = [
+    const isIssue = documentType() === 'out'
+    const warehouseColumn = isIssue ? 6 : 5
+    const values = isIssue
+      ? [
+          '', '', item.itemCode, item.itemName, item.ecusItemCode, item.unit,
+          item.warehouseCode, item.debitAccount, item.creditAccount,
+          item.quantity, item.unitPrice, '',
+        ]
+      : [
       '', '', item.itemCode, item.itemName, item.ecusItemCode,
       item.warehouseCode, item.debitAccount, item.creditAccount, item.unit,
       item.quantity, item.unitPrice, '',
-    ]
+        ]
     values.forEach((value, index) => {
-      if (row.cells[index]) row.cells[index].textContent = value
+      if (row.cells[index])
+        row.cells[index].textContent =
+          currentUser?.role === 'warehouse' && index === warehouseColumn
+            ? currentUser.warehouseCode
+            : value
     })
     tableBody.append(row)
   }
@@ -324,7 +337,7 @@ const pagePresets = {
     code: 'PN00002',
     voucherAction: '⟳ Tạo phiếu nhập kho gộp...',
     voucherType: ['Thành phẩm sản xuất', 'Nhập mua hàng', 'Nhập khác'],
-    goodsType: ['Nguyên liệu', 'Thành phẩm', 'Công cụ dụng cụ'],
+    goodsType: ['Nguyên liệu', 'Thành phẩm', 'Sản phẩm', 'Công cụ dụng cụ'],
     headers: [
       '▧',
       'STT',
@@ -456,6 +469,7 @@ function changePage(page) {
   if (reportMode) {
     document.querySelector('.titlebar strong').textContent =
       'Báo cáo nhập xuất tồn (Gia công)'
+    applyWarehouseRestrictions()
     return
   }
   const config = pagePresets[page]
@@ -481,6 +495,7 @@ function changePage(page) {
     header.textContent = config.headers[index]
   })
   document.querySelector('.page').dataset.documentType = page
+  applyWarehouseRestrictions()
 }
 
 document
@@ -622,7 +637,208 @@ function activeReportTable() {
   )
 }
 
-function showInventoryReport(detail = false) {
+function reportNumber(value) {
+  const number = Number(value) || 0
+  return number.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+}
+
+function reportDate(value) {
+  if (!value) return ''
+  const [year, month, day] = String(value).slice(0, 10).split('-')
+  return year && month && day ? `${day}/${month}/${year}` : String(value)
+}
+
+function balanceText(value) {
+  return value < 0 ? `(${reportNumber(Math.abs(value))})` : reportNumber(value)
+}
+
+function addReportRow(tbody, values, className = '') {
+  const row = document.createElement('tr')
+  if (className) row.className = className
+  for (const entry of values) {
+    const cell = document.createElement('td')
+    if (entry && typeof entry === 'object') {
+      cell.colSpan = entry.colSpan || 1
+      cell.textContent = String(entry.value ?? '')
+    } else {
+      cell.textContent = String(entry ?? '')
+    }
+    row.append(cell)
+  }
+  tbody.append(row)
+}
+
+function renderInventoryReport(movements, fromDate, contractFilter) {
+  const products = new Map()
+  for (const movement of movements) {
+    const itemCode = String(movement.itemCode || '').trim()
+    if (!itemCode) continue
+    if (!products.has(itemCode)) {
+      products.set(itemCode, {
+        itemCode,
+        itemName: movement.itemName || '',
+        unit: movement.unit || '',
+        openingQty: 0,
+        openingAmount: 0,
+        receiptQty: 0,
+        receiptAmount: 0,
+        issueQty: 0,
+        issueAmount: 0,
+        periodMovements: [],
+      })
+    }
+    const product = products.get(itemCode)
+    if (!product.itemName && movement.itemName) product.itemName = movement.itemName
+    if (!product.unit && movement.unit) product.unit = movement.unit
+    const quantity = Number(movement.quantity) || 0
+    const amount = Number(movement.amount) || 0
+    const isOpening = fromDate && movement.movementDate < fromDate
+    if (isOpening) {
+      const direction = movement.movementType === 'in' ? 1 : -1
+      product.openingQty += direction * quantity
+      product.openingAmount += direction * amount
+    } else {
+      product.periodMovements.push(movement)
+      if (movement.movementType === 'in') {
+        product.receiptQty += quantity
+        product.receiptAmount += amount
+      } else {
+        product.issueQty += quantity
+        product.issueAmount += amount
+      }
+    }
+  }
+
+  const productRows = [...products.values()].sort((left, right) =>
+    left.itemCode.localeCompare(right.itemCode, 'vi', { numeric: true })
+  )
+  const summaryBody = document.querySelector(
+    '#reportResults .inventory-table .inventory-ledger tbody'
+  )
+  const detailBody = document.querySelector(
+    '#reportResults .paper-table-wrap:not(.inventory-table) .stock-ledger tbody'
+  )
+  summaryBody.replaceChildren()
+  detailBody.replaceChildren()
+
+  if (!productRows.length) {
+    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 16 }])
+    addReportRow(detailBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 10 }])
+    return
+  }
+
+  const totals = {
+    openingQty: 0,
+    openingAmount: 0,
+    receiptQty: 0,
+    receiptAmount: 0,
+    issueQty: 0,
+    issueAmount: 0,
+    endingQty: 0,
+    endingAmount: 0,
+  }
+  let lineNumber = 1
+  addReportRow(
+    detailBody,
+    [{ value: `Số hợp đồng: ${contractFilter || 'Tất cả hợp đồng'}`, colSpan: 10 }],
+    'contract-row'
+  )
+
+  productRows.forEach((product, index) => {
+    const endingQty = product.openingQty + product.receiptQty - product.issueQty
+    const endingAmount =
+      product.openingAmount + product.receiptAmount - product.issueAmount
+    totals.openingQty += product.openingQty
+    totals.openingAmount += product.openingAmount
+    totals.receiptQty += product.receiptQty
+    totals.receiptAmount += product.receiptAmount
+    totals.issueQty += product.issueQty
+    totals.issueAmount += product.issueAmount
+    totals.endingQty += endingQty
+    totals.endingAmount += endingAmount
+
+    addReportRow(summaryBody, [
+      index + 1,
+      product.itemCode,
+      product.itemName,
+      product.unit,
+      reportNumber(product.openingQty),
+      reportNumber(product.openingQty ? product.openingAmount / product.openingQty : 0),
+      reportNumber(product.openingAmount),
+      reportNumber(product.receiptQty),
+      reportNumber(product.receiptQty ? product.receiptAmount / product.receiptQty : 0),
+      reportNumber(product.receiptAmount),
+      reportNumber(product.issueQty),
+      reportNumber(product.issueQty ? product.issueAmount / product.issueQty : 0),
+      reportNumber(product.issueAmount),
+      reportNumber(endingQty),
+      reportNumber(endingQty ? endingAmount / endingQty : 0),
+      reportNumber(endingAmount),
+    ])
+
+    addReportRow(
+      detailBody,
+      [{ value: `Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}`, colSpan: 10 }],
+      'product-row'
+    )
+    addReportRow(
+      detailBody,
+      [lineNumber++, '', '', '', '(Số tồn đầu kỳ)', '', '', '', balanceText(product.openingQty), ''],
+      'opening-row'
+    )
+    let runningBalance = product.openingQty
+    for (const movement of product.periodMovements) {
+      const isReceipt = movement.movementType === 'in'
+      const quantity = Number(movement.quantity) || 0
+      runningBalance += isReceipt ? quantity : -quantity
+      addReportRow(detailBody, [
+        lineNumber++,
+        reportDate(movement.movementDate),
+        isReceipt ? movement.voucherNo : '',
+        isReceipt ? '' : movement.voucherNo,
+        movement.description || '',
+        reportDate(movement.movementDate),
+        isReceipt ? reportNumber(quantity) : '',
+        isReceipt ? '' : reportNumber(quantity),
+        balanceText(runningBalance),
+        '',
+      ])
+    }
+    addReportRow(
+      detailBody,
+      [
+        { value: 'Cộng cuối kỳ', colSpan: 6 },
+        reportNumber(product.receiptQty),
+        reportNumber(product.issueQty),
+        balanceText(endingQty),
+        '',
+      ],
+      'subtotal-row'
+    )
+  })
+
+  addReportRow(
+    summaryBody,
+    [
+      { value: 'Cộng', colSpan: 4 },
+      reportNumber(totals.openingQty),
+      '',
+      reportNumber(totals.openingAmount),
+      reportNumber(totals.receiptQty),
+      '',
+      reportNumber(totals.receiptAmount),
+      reportNumber(totals.issueQty),
+      '',
+      reportNumber(totals.issueAmount),
+      reportNumber(totals.endingQty),
+      '',
+      reportNumber(totals.endingAmount),
+    ],
+    'subtotal-row'
+  )
+}
+
+async function showInventoryReport(detail = false) {
   const form = new FormData(document.querySelector('#stockReportForm'))
   const from = form.get('fromDate')
   const to = form.get('toDate')
@@ -631,22 +847,49 @@ function showInventoryReport(detail = false) {
     return false
   }
   const category = form.get('goodsCategory')
-  const warehouse = form.get('warehouse')
+  const warehouse =
+    currentUser?.role === 'warehouse'
+      ? currentUser.warehouseCode
+      : form.get('warehouse')
   const contract = form.get('contract')
+  const item = form.get('item')?.trim() || ''
+  const productCode = form.get('productCode')?.trim() || ''
+  const query = new URLSearchParams({
+    fromDate: from || '',
+    toDate: to || '',
+    warehouse: warehouse || '',
+    productCode,
+    contract: contract || '',
+    item,
+    category: category || '',
+  })
+  const actionButton = document.querySelector(
+    detail ? '#detailReportBtn' : '#stockReportForm button[type="submit"]'
+  )
+  const buttonText = actionButton.textContent
+  actionButton.disabled = true
+  actionButton.textContent = 'Đang tải dữ liệu...'
+  try {
+    const response = await fetch(apiUrl(`/api/inventory-report?${query}`))
+    const result = await readApiJson(response, 'tải báo cáo nhập xuất tồn')
+    if (!response.ok || !result.success)
+      throw new Error(result.error || 'Không tải được dữ liệu báo cáo.')
+    renderInventoryReport(result.data.movements || [], from, contract)
+  } catch (error) {
+    notify(apiErrorMessage(error, 'Không tải được dữ liệu báo cáo.'))
+    return false
+  } finally {
+    actionButton.disabled = false
+    actionButton.textContent = buttonText
+  }
   const displayDate = value =>
     value ? new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN') : ''
   document.querySelector('#paperFrom').textContent = displayDate(from)
   document.querySelector('#paperTo').textContent = displayDate(to)
-  document.querySelector('#paperWarehouseName').textContent = warehouse
-  document.querySelector('#paperWarehouseCode').textContent =
-    warehouse === 'Kho thành phẩm'
-      ? 'KHO-TP'
-      : warehouse === 'Kho nguyên liệu'
-        ? 'KHO-NL'
-        : 'KHO-PL'
+  document.querySelector('#paperWarehouseName').textContent =
+    warehouseNames[warehouse] || warehouse
+  document.querySelector('#paperWarehouseCode').textContent = warehouse
   document.querySelector('#paperContract').textContent = contract
-  const item = form.get('item')?.trim()
-  const productCode = form.get('productCode')?.trim()
   document.querySelector('#paperFormCode').textContent =
     `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${category}${item ? ` · ${item}` : ''}${productCode ? ` · Mã SP: ${productCode}` : ''}`
   document.querySelector('.paper-title').textContent = detail
@@ -783,10 +1026,34 @@ function collectReceiptItems() {
       itemCode: cellValue(row, 2),
       itemName: cellValue(row, 3),
       ecusItemCode: cellValue(row, 4),
-      warehouseCode: cellValue(row, 5),
+      warehouseCode:
+        currentUser?.role === 'warehouse'
+          ? currentUser.warehouseCode
+          : cellValue(row, 5),
       debitAccount: cellValue(row, 6),
       creditAccount: cellValue(row, 7),
       unit: cellValue(row, 8),
+      quantity: parseTableNumber(cellValue(row, 9)),
+      unitPrice: parseTableNumber(cellValue(row, 10)),
+    }))
+    .filter(item =>
+      Object.values(item).some(value => value !== '' && value !== 0)
+    )
+}
+
+function collectIssueItems() {
+  return rows()
+    .map(row => ({
+      itemCode: cellValue(row, 2),
+      itemName: cellValue(row, 3),
+      ecusItemCode: cellValue(row, 4),
+      warehouseCode:
+        currentUser?.role === 'warehouse'
+          ? currentUser.warehouseCode
+          : cellValue(row, 6),
+      unit: cellValue(row, 5),
+      debitAccount: cellValue(row, 7),
+      creditAccount: cellValue(row, 8),
       quantity: parseTableNumber(cellValue(row, 9)),
       unitPrice: parseTableNumber(cellValue(row, 10)),
     }))
@@ -801,7 +1068,6 @@ function receiptPayload() {
     transporterName: document.querySelector('#transporterName').value,
     description: document.querySelector('#receiptDescription').value,
     warehouseCode: document.querySelector('#warehousePicker').value,
-    productCode: document.querySelector('#productCode').value,
     customsDeclarationNo: document.querySelector('#customsDeclarationNo').value,
     customsDeclarationDate: document.querySelector('#customsDeclarationDate')
       .value,
@@ -818,7 +1084,7 @@ function receiptPayload() {
     receiptType: document.querySelector('#voucherType').value,
     itemType: document.querySelector('#goodsType').value,
     isSelfSupplied: document.querySelector('#isSelfSupplied').checked,
-    items: collectReceiptItems(),
+    items: documentType() === 'out' ? collectIssueItems() : collectReceiptItems(),
   }
 }
 
@@ -999,7 +1265,12 @@ function createVoucher(copyCurrent) {
     else control.value = ''
   })
   document.querySelector('#senderPicker').value = ''
-  document.querySelector('#warehousePicker').value = ''
+  document.querySelector('#warehousePicker').value =
+    currentUser?.role === 'warehouse' ? currentUser.warehouseCode : ''
+  document.querySelector('#warehouseName').value =
+    currentUser?.role === 'warehouse'
+      ? warehouseNames[currentUser.warehouseCode] || currentUser.warehouseCode
+      : ''
   document.querySelector('#currencyCode').value = 'VND'
   exchangeRateInput.value = '1'
   exchangeRateInput.readOnly = true
@@ -1081,7 +1352,6 @@ function loadReceiptVoucher(record) {
   set('receiptDescription', record.description)
   set('warehousePicker', record.warehouseCode)
   set('warehouseName', record.warehouseCode)
-  set('productCode', record.productCode)
   set('customsDeclarationNo', record.customsDeclarationNo)
   set('customsDeclarationDate', record.customsDeclarationDate)
   set('contractNo', record.contractNo)
@@ -1257,7 +1527,7 @@ function renderVoucherSearch() {
     .value.trim()
     .toLocaleLowerCase('vi')
   const list = document.querySelector('#voucherSearchResults')
-  const records = readVouchers().filter(
+  const records = (currentUser?.role === 'warehouse' ? [] : readVouchers()).filter(
     item =>
       item.type === documentType() &&
       `${item.number} ${item.fields?.[0]?.value || ''}`
@@ -1289,16 +1559,20 @@ function renderVoucherSearch() {
 document
   .querySelector('#saveVoucher')
   .addEventListener('click', () => saveVoucher())
-document
-  .querySelector('#postVoucher')
-  .addEventListener('click', () => saveVoucher('Đã ghi sổ'))
 document.querySelector('#searchBtn').addEventListener('click', () => {
   document.querySelector('#voucherSearchInput').value = ''
-  renderVoucherSearch()
   voucherSearchDialog.showModal()
   document.querySelector('#voucherSearchInput').focus()
-  if (documentType() === 'in') searchDatabaseReceipts('')
-  else if (documentType() === 'out') searchDatabaseIssues('')
+  if (documentType() === 'in' || documentType() === 'out') {
+    const list = document.querySelector('#voucherSearchResults')
+    list.replaceChildren()
+    list.textContent = 'Đang tải chứng từ từ cơ sở dữ liệu...'
+    list.className = 'voucher-search-results empty'
+    if (documentType() === 'in') searchDatabaseReceipts('')
+    else searchDatabaseIssues('')
+  } else {
+    renderVoucherSearch()
+  }
 })
 document
   .querySelector('#voucherSearchInput')
@@ -1332,7 +1606,8 @@ document.querySelector('#deleteVoucher').addEventListener('click', () => {
 async function createSplitVouchers() {
   const button = document.querySelector('#createVoucher')
   const type = documentType()
-  const items = collectReceiptItems()
+  const payload = receiptPayload()
+  const items = payload.items
   if (!items.length) {
     notify('Chưa có dòng hàng để tách phiếu.')
     return
@@ -1341,7 +1616,6 @@ async function createSplitVouchers() {
     notify('Mỗi dòng hàng cần có Mã SP trước khi tách phiếu.')
     return
   }
-  const payload = receiptPayload()
   if (!payload.voucherDate) {
     notify('Vui lòng nhập ngày chứng từ trước khi tách phiếu.')
     return
@@ -1393,6 +1667,154 @@ changePage('in')
 document.querySelector('#helpLink').addEventListener('click', event => {
   event.preventDefault()
   notify('F5: copy dòng · F8: xóa dòng · F11: xóa tất cả.')
+})
+const createWarehouseUserDialog = document.querySelector('#createWarehouseUserDialog')
+document.querySelector('#userManagementBtn').addEventListener('click', () => {
+  document.querySelector('#createWarehouseUserForm').reset()
+  document.querySelector('#createUserMessage').textContent = ''
+  createWarehouseUserDialog.showModal()
+})
+document.querySelector('#closeCreateUserDialog').addEventListener('click', () =>
+  createWarehouseUserDialog.close()
+)
+document.querySelector('#cancelCreateUser').addEventListener('click', () =>
+  createWarehouseUserDialog.close()
+)
+document.querySelector('#createWarehouseUserForm').addEventListener('submit', async event => {
+  event.preventDefault()
+  const message = document.querySelector('#createUserMessage')
+  const saveButton = document.querySelector('#saveNewUser')
+  saveButton.disabled = true
+  message.textContent = ''
+  try {
+    const response = await fetch(apiUrl('/api/admin/users'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.querySelector('#newUsername').value.trim(),
+        password: document.querySelector('#newUserPassword').value,
+        warehouseCode: document.querySelector('#newUserWarehouse').value,
+      }),
+    })
+    const result = await readApiJson(response, 'tạo tài khoản kho')
+    if (!response.ok || !result.success)
+      throw new Error(result.error || 'Không thể tạo tài khoản kho.')
+    createWarehouseUserDialog.close()
+    notify(`Đã tạo user ${result.data.username} cho ${result.data.warehouseCode}.`)
+  } catch (error) {
+    message.textContent = apiErrorMessage(error, 'Không thể tạo tài khoản kho.')
+  } finally {
+    saveButton.disabled = false
+  }
+})
+async function initializeUserAccess() {
+  try {
+    const response = await fetch(apiUrl('/api/auth/me'))
+    const result = await readApiJson(response, 'xác thực tài khoản')
+    if (!response.ok || !result.success)
+      throw new Error(result.error || 'Phiên đăng nhập đã hết hạn.')
+    currentUser = result.data
+    const userLabel = document.querySelector('#currentUserLabel')
+    userLabel.textContent = `Tài khoản: ${currentUser.username}`
+    userLabel.hidden = false
+    if (currentUser.role === 'admin') {
+      document.querySelector('#userManagementBtn').hidden = false
+      return
+    }
+
+    document.querySelector('#userManagementBtn').hidden = true
+    document.querySelector('#deleteVoucher').hidden = true
+    const warehousePicker = document.querySelector('#warehousePicker')
+    warehousePicker.disabled = true
+    document.querySelectorAll('#stockReportForm select[name="warehouse"]').forEach(select => {
+      select.value = currentUser.warehouseCode
+      select.disabled = true
+    })
+    applyWarehouseRestrictions()
+  } catch {
+    window.location.replace('/admin')
+  }
+}
+
+function applyWarehouseRestrictions() {
+  if (currentUser?.role !== 'warehouse') return
+  const warehouseCode = currentUser.warehouseCode
+  const picker = document.querySelector('#warehousePicker')
+  picker.value = warehouseCode
+  picker.disabled = true
+  document.querySelector('#warehouseName').value =
+    warehouseNames[warehouseCode] || warehouseCode
+  const warehouseColumn =
+    document.querySelector('.page').dataset.documentType === 'out' ? 6 : 5
+  const previousWarehouseColumn = warehouseColumn === 6 ? 5 : 6
+  rows().forEach(row => {
+    const previousCell = row.children[previousWarehouseColumn]
+    if (previousCell?.getAttribute('aria-readonly') === 'true') {
+      previousCell.textContent = ''
+      previousCell.removeAttribute('aria-readonly')
+      previousCell.setAttribute('contenteditable', 'true')
+    }
+    const cell = row.children[warehouseColumn]
+    if (!cell) return
+    cell.textContent = warehouseCode
+    cell.removeAttribute('contenteditable')
+    cell.setAttribute('aria-readonly', 'true')
+  })
+  document.querySelectorAll('#stockReportForm select[name="warehouse"]').forEach(select => {
+    select.value = warehouseCode
+    select.disabled = true
+  })
+}
+initializeUserAccess()
+const changePasswordDialog = document.querySelector('#changePasswordDialog')
+document.querySelector('#changePasswordBtn').addEventListener('click', () => {
+  document.querySelector('#passwordMessage').textContent = ''
+  changePasswordDialog.showModal()
+})
+document.querySelector('#closePasswordDialog').addEventListener('click', () =>
+  changePasswordDialog.close()
+)
+document.querySelector('#cancelPasswordChange').addEventListener('click', () =>
+  changePasswordDialog.close()
+)
+document.querySelector('#changePasswordForm').addEventListener('submit', async event => {
+  event.preventDefault()
+  const message = document.querySelector('#passwordMessage')
+  const newPassword = document.querySelector('#newPassword').value
+  if (newPassword !== document.querySelector('#confirmPassword').value) {
+    message.textContent = 'Hai mật khẩu mới chưa khớp.'
+    return
+  }
+  const saveButton = document.querySelector('#savePasswordChange')
+  saveButton.disabled = true
+  message.textContent = ''
+  try {
+    const response = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword: document.querySelector('#currentPassword').value,
+        newPassword,
+      }),
+    })
+    const result = await readApiJson(response, 'đổi mật khẩu')
+    if (!response.ok || !result.success)
+      throw new Error(result.error || 'Không thể đổi mật khẩu.')
+    document.querySelector('#changePasswordForm').reset()
+    changePasswordDialog.close()
+    notify('Đã đổi mật khẩu và lưu vào database.')
+  } catch (error) {
+    message.textContent = apiErrorMessage(error, 'Không thể đổi mật khẩu.')
+  } finally {
+    saveButton.disabled = false
+  }
+})
+document.querySelector('#logoutBtn').addEventListener('click', async () => {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' })
+  } finally {
+    window.location.replace('/admin')
+  }
 })
 loadDeliveryPeople()
 

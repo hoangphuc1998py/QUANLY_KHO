@@ -74,6 +74,29 @@ body {
 .help span {
   margin-right: 4px;
 }
+.help .current-user {
+  margin-left: 12px;
+  color: #13233b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#changePasswordBtn,
+#logoutBtn,
+#userManagementBtn {
+  margin-left: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #526681;
+  font: inherit;
+  cursor: pointer;
+}
+#changePasswordBtn:hover,
+#logoutBtn:hover,
+#userManagementBtn:hover {
+  color: #c43838;
+}
+#userManagementBtn[hidden] { display: none; }
 .tabs {
   height: auto;
   display: flex;
@@ -1066,8 +1089,8 @@ th:nth-child(9) {
   .toast {
     display: none !important;
   }
-  .report-page,
-  .report-results {
+  .report-page:not(.hidden),
+  .report-results:not(.hidden) {
     display: block !important;
     width: 100%;
     max-width: none;
@@ -1076,6 +1099,10 @@ th:nth-child(9) {
     border: 0;
     background: #fff;
     box-shadow: none;
+  }
+  .report-page.hidden,
+  .report-results.hidden {
+    display: none !important;
   }
   .report-paper {
     width: 100%;
@@ -1851,6 +1878,31 @@ th:nth-child(9) {
   background: #fff1f2;
   color: #b91c1c;
 }
+.password-dialog {
+  width: min(440px, calc(100% - 28px));
+  max-width: none;
+  padding: 20px;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  color: #1e293b;
+  box-shadow: 0 20px 60px #0f172a35;
+}
+.password-dialog::backdrop {
+  background: #0f172a70;
+  backdrop-filter: blur(2px);
+}
+.password-dialog form { display: grid; gap: 8px; }
+.password-dialog header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.password-dialog h2 { margin: 0; font-size: 18px; }
+.password-dialog header p { margin: 5px 0 0; color: #64748b; font-size: 12px; }
+.password-dialog label { margin-top: 4px; font-size: 12px; font-weight: 600; }
+.password-dialog input,
+.password-dialog select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #d8e1ec; border-radius: 7px; background: #fff; font: inherit; }
+.password-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.password-dialog footer button,
+.password-dialog header button { min-height: 34px; padding: 0 12px; border: 1px solid #d8e1ec; border-radius: 7px; background: #fff; color: #334155; font: inherit; cursor: pointer; }
+.password-dialog footer button[type="submit"] { border-color: #2563eb; background: #2563eb; color: #fff; }
+.password-message { min-height: 16px; margin: 0; color: #c43838; font-size: 12px; }
 .voucher-search-dialog {
   width: min(520px, calc(100% - 28px));
   max-width: none;

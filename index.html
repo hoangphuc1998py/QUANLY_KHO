@@ -19,6 +19,10 @@
       </header>
       <div class="help">
         <span>❔</span> <a href="#" id="helpLink">Hướng dẫn - F1</a>
+        <span id="currentUserLabel" class="current-user" hidden></span>
+        <button type="button" id="userManagementBtn" hidden>Tạo user</button>
+        <button type="button" id="changePasswordBtn">Đổi mật khẩu</button>
+        <button type="button" id="logoutBtn">Đăng xuất</button>
       </div>
       <nav class="page-switcher" aria-label="Trang nghiệp vụ">
         <button class="page-choice active" data-page="in">
@@ -91,20 +95,13 @@
                 </div>
                 <input id="warehouseName" class="grow" aria-label="Tên kho"
               /></label>
-              <label class="form-row"
-                ><span>Mã SP:</span
-                ><input id="productCode" class="grow" aria-label="Mã sản phẩm"
-              /></label>
             </fieldset>
             <fieldset class="declaration-box">
               <legend>Thông tin tờ khai</legend>
               <div class="declaration-grid">
                 <span>Số tờ khai:</span>
                 <div class="input-group">
-                  <input id="customsDeclarationNo" /><button
-                    type="button"
-                    class="ellipsis">
-                    ...
+                  <input id="customsDeclarationNo" />
                   </button>
                 </div>
                 <span>Ngày tờ khai:</span>
@@ -113,19 +110,11 @@
                 </div>
                 <span>Số hợp đồng:</span>
                 <div class="input-group">
-                  <input id="contractNo" placeholder="Nhập số hợp đồng" /><button
-                    type="button"
-                    class="ellipsis">
-                    ...
-                  </button>
+                  <input id="contractNo" placeholder="Nhập số hợp đồng" />
                 </div>
                 <span>Số hóa đơn:</span>
                 <div class="input-group">
-                  <input id="invoiceNo" /><button
-                    type="button"
-                    class="ellipsis">
-                    ...
-                  </button>
+                  <input id="invoiceNo" />
                 </div>
                 <span>Ngày hóa đơn:</span>
                 <div class="input-group">
@@ -208,6 +197,7 @@
                 <select id="goodsType">
                   <option>Nguyên liệu</option>
                   <option>Thành phẩm</option>
+                  <option>Sản phẩm</option>
                   <option>Công cụ dụng cụ</option>
                 </select>
               </div></label
@@ -495,9 +485,13 @@
               <label class="report-field"
                 ><span>Mã kho</span
                 ><select name="warehouse">
-                  <option>Kho thành phẩm</option>
-                  <option>Kho nguyên liệu</option>
-                  <option>Kho phụ liệu</option>
+                  <option value="">Chọn kho</option>
+                  <option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option>
+                  <option value="KHO AN HUNG">KHO AN HUNG</option>
+                  <option value="KHO AN THINH">KHO AN THINH</option>
+                  <option value="KHO AN PHU">KHO AN PHU</option>
+                  <option value="KHO AN PHAT">KHO AN PHAT</option>
+                  <option value="KHO VESTON">KHO VESTON</option>
                 </select></label
               >
               <label class="report-field"
@@ -1088,7 +1082,7 @@
         <span class="spacer"></span><button id="copyVoucher">▤ Copy</button><button id="printVoucher">♟ In</button><button id="newVoucher">⊕ Thêm Mới</button>
         <button id="importExcel" type="button">⇧ Import Excel</button>
         <input id="excelFileInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
-        <button id="searchBtn">⌕ Tìm CT...</button><button id="saveVoucher">▣ Ghi</button><button id="postVoucher">☑ Ghi sổ</button>
+        <button id="searchBtn">⌕ Tìm CT...</button><button id="saveVoucher">▣ Ghi</button>
         <button id="deleteVoucher">× Xóa</button><button class="exit" id="exitBtn">⊠ Đóng</button>
       </footer>
     </section>
@@ -1105,7 +1099,7 @@
         <fieldset class="report-filter"><legend>Điều kiện lọc</legend><div class="report-fields">
           <label class="report-field"><span>Từ ngày</span><input type="date" name="fromDate" value="2019-07-10"></label>
           <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate" value="2019-07-11"></label>
-          <label class="report-field"><span>Mã kho</span><select name="warehouse"><option>Kho thành phẩm</option><option>Kho nguyên liệu</option><option>Kho phụ liệu</option></select></label>
+          <label class="report-field"><span>Mã kho</span><select name="warehouse"><option value="">Chọn kho</option><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></label>
           <label class="report-field"><span>Hàng hóa</span><input type="text" name="item"></label>
           <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
           <label class="report-field"><span>Hợp đồng</span><input type="text" name="contract" placeholder="Nhập hợp đồng"></label>
@@ -1187,6 +1181,40 @@
       <section id="closedState" class="closed-state hidden"><strong>Phiếu đã đóng</strong><span>Bạn có thể mở lại phiếu để tiếp tục làm việc.</span><button type="button" id="reopenVoucher">Mở lại phiếu</button></section>
       <div class="toast" id="toast" role="status"></div>
     </main>
+    <dialog id="changePasswordDialog" class="password-dialog">
+      <form id="changePasswordForm">
+        <header><div><h2>Đổi mật khẩu</h2><p>Đặt mật khẩu mới dễ nhớ, tối thiểu 8 ký tự.</p></div><button type="button" id="closePasswordDialog" aria-label="Đóng">×</button></header>
+        <label for="currentPassword">Mật khẩu hiện tại</label>
+        <input id="currentPassword" type="password" autocomplete="current-password" required>
+        <label for="newPassword">Mật khẩu mới</label>
+        <input id="newPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <label for="confirmPassword">Nhập lại mật khẩu mới</label>
+        <input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <p class="password-message" id="passwordMessage" role="alert" aria-live="polite"></p>
+        <footer><button type="button" id="cancelPasswordChange">Hủy</button><button type="submit" id="savePasswordChange">Lưu mật khẩu</button></footer>
+      </form>
+    </dialog>
+    <dialog id="createWarehouseUserDialog" class="password-dialog">
+      <form id="createWarehouseUserForm">
+        <header><div><h2>Tạo tài khoản kho</h2><p>Tài khoản mới chỉ được lập phiếu nhập ở kho được chọn.</p></div><button type="button" id="closeCreateUserDialog" aria-label="Đóng">×</button></header>
+        <label for="newUsername">Tên đăng nhập</label>
+        <input id="newUsername" autocomplete="off" minlength="3" maxlength="40" placeholder="Ví dụ: tuan_ap" required>
+        <label for="newUserPassword">Mật khẩu ban đầu</label>
+        <input id="newUserPassword" type="password" autocomplete="new-password" minlength="8" required>
+        <label for="newUserWarehouse">Kho được thao tác</label>
+        <select id="newUserWarehouse" required>
+          <option value="">Chọn kho</option>
+          <option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option>
+          <option value="KHO AN HUNG">KHO AN HUNG</option>
+          <option value="KHO AN THINH">KHO AN THINH</option>
+          <option value="KHO AN PHU">KHO AN PHU</option>
+          <option value="KHO AN PHAT">KHO AN PHAT</option>
+          <option value="KHO VESTON">KHO VESTON</option>
+        </select>
+        <p class="password-message" id="createUserMessage" role="alert" aria-live="polite"></p>
+        <footer><button type="button" id="cancelCreateUser">Hủy</button><button type="submit" id="saveNewUser">Tạo user</button></footer>
+      </form>
+    </dialog>
     <footer class="site-copyright">© ANHUCO. All rights reserved.</footer>
     <script src="/node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="index.js"></script>
