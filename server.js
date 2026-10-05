@@ -824,15 +824,8 @@ app.get('/api/inventory-report', (req, res) => {
       params.push(parseOptionalDate(filters.toDate, 'Đến ngày', true))
     }
     if (warehouseFilter) {
-      if (req.adminSession.role === 'admin') {
-        clauses.push(
-          '(warehouseCode = ? COLLATE NOCASE OR headerWarehouseCode = ? COLLATE NOCASE)'
-        )
-        params.push(warehouseFilter, warehouseFilter)
-      } else {
-        clauses.push('warehouseCode = ? COLLATE NOCASE')
-        params.push(warehouseFilter)
-      }
+      clauses.push('warehouseCode = ? COLLATE NOCASE')
+      params.push(warehouseFilter)
     }
     if (filters.productCode) {
       clauses.push("itemCode LIKE ? ESCAPE '\\' COLLATE NOCASE")
@@ -910,6 +903,16 @@ function nextDatabaseVoucherNumber(type, currentVoucherNo) {
   if (currentMatch) maximum = Math.max(maximum, Number(currentMatch[1]) || 0)
   return `${prefix}${String(maximum + 1).padStart(5, '0')}`
 }
+
+app.get('/api/inventory-vouchers/next-number', (req, res) => {
+  const type = req.query.type === 'in' || req.query.type === 'out' ? req.query.type : null
+  if (!type) {
+    res.status(400).json({ success: false, error: 'Loại phiếu không hợp lệ.' })
+    return
+  }
+  const voucherNo = nextDatabaseVoucherNumber(type, req.query.currentVoucherNo)
+  res.json({ success: true, data: { voucherNo } })
+})
 
 app.post('/api/inventory-vouchers/split', (req, res) => {
   try {

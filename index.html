@@ -137,7 +137,7 @@
             >
             <label class="doc-row"
               ><span>Số chứng từ: <b>*</b></span
-              ><input id="voucherNo" class="voucher" value="PN00002"
+              ><input id="voucherNo" class="voucher" value="" placeholder="Đang lấy số chứng từ..." readonly
             /></label>
             <label class="doc-row"
               ><span>Ngày chứng từ: <b>*</b></span>
@@ -476,11 +476,11 @@
             <div class="report-fields">
               <label class="report-field"
                 ><span>Từ ngày</span
-                ><input type="date" name="fromDate" value="2019-07-10"
+                ><input type="date" name="fromDate"
               /></label>
               <label class="report-field"
                 ><span>Đến ngày</span
-                ><input type="date" name="toDate" value="2019-07-11"
+                ><input type="date" name="toDate"
               /></label>
               <label class="report-field"
                 ><span>Mã kho</span
@@ -620,6 +620,7 @@
                 <thead>
                   <tr>
                     <th rowspan="2">STT</th>
+                    <th rowspan="2">Mã kho</th>
                     <th rowspan="2">Mã hàng</th>
                     <th rowspan="2">Tên hàng</th>
                     <th rowspan="2">ĐVT</th>
@@ -1097,8 +1098,8 @@
           <label><input type="radio" name="goodsCategory" value="Hàng mẫu">Hàng mẫu</label>
         </div></fieldset>
         <fieldset class="report-filter"><legend>Điều kiện lọc</legend><div class="report-fields">
-          <label class="report-field"><span>Từ ngày</span><input type="date" name="fromDate" value="2019-07-10"></label>
-          <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate" value="2019-07-11"></label>
+          <label class="report-field"><span>Từ ngày</span><input type="date" name="fromDate"></label>
+          <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate"></label>
           <label class="report-field"><span>Mã kho</span><select name="warehouse"><option value="">Chọn kho</option><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></label>
           <label class="report-field"><span>Hàng hóa</span><input type="text" name="item"></label>
           <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
@@ -1123,7 +1124,7 @@
           <p class="paper-warehouse"><strong>Mã kho:</strong> <span id="paperWarehouseCode">KHO-TP</span><span class="warehouse-name"><strong>Tên kho:</strong> <span id="paperWarehouseName">Kho thành phẩm</span></span><span class="warehouse-name"><strong>Hợp đồng:</strong> <span id="paperContract">HD01/2019-TSD</span></span></p>
           <div class="paper-table-wrap inventory-table"><table class="stock-ledger inventory-ledger" aria-label="Báo cáo tổng hợp nhập xuất tồn">
             <thead>
-              <tr><th rowspan="2">STT</th><th rowspan="2">Mã hàng</th><th rowspan="2">Tên hàng</th><th rowspan="2">ĐVT</th><th colspan="3">Tồn đầu kỳ</th><th colspan="3">Nhập trong kỳ</th><th colspan="3">Xuất trong kỳ</th><th colspan="3">Tồn cuối kỳ</th></tr>
+              <tr><th rowspan="2">STT</th><th rowspan="2">Mã kho</th><th rowspan="2">Mã hàng</th><th rowspan="2">Tên hàng</th><th rowspan="2">ĐVT</th><th colspan="3">Tồn đầu kỳ</th><th colspan="3">Nhập trong kỳ</th><th colspan="3">Xuất trong kỳ</th><th colspan="3">Tồn cuối kỳ</th></tr>
               <tr><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr>
             </thead>
             <tbody>
@@ -1215,7 +1216,7 @@
         <footer><button type="button" id="cancelCreateUser">Hủy</button><button type="submit" id="saveNewUser">Tạo user</button></footer>
       </form>
     </dialog>
-    <footer class="site-copyright">© ANHUCO. All rights reserved.</footer>
+    <footer class="site-copyright">Copyright by IT - ANHUCO</footer>
     <script src="/node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="index.js"></script>
   </body>

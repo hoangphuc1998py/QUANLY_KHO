@@ -456,6 +456,9 @@ loadSelectedCurrencyRate()
 
 function changePage(page) {
   const reportMode = page === 'report'
+  document
+    .querySelector('.site-copyright')
+    ?.classList.toggle('report-mode', reportMode)
   const previousType = document.querySelector('.page').dataset.documentType
   document
     .querySelector('#stockReportPage')
@@ -481,7 +484,11 @@ function changePage(page) {
     `${config.receiver} <b>*</b>`
   document.querySelector('#senderPicker option[value=""]').textContent =
     page === 'out' ? 'Chọn người nhận hàng' : 'Chọn nhà cung cấp'
-  document.querySelector('.voucher').value = config.code
+  const voucherInput = document.querySelector('.voucher')
+  if (!currentSavedId) {
+    voucherInput.value = ''
+    voucherInput.placeholder = 'Đang lấy số chứng từ...'
+  }
   document.querySelector('#createVoucher').textContent = config.voucherAction
   setOptions(
     document.querySelector('#voucherType'),
@@ -498,6 +505,7 @@ function changePage(page) {
   })
   document.querySelector('.page').dataset.documentType = page
   applyWarehouseRestrictions()
+  if (!currentSavedId && currentUser) refreshNextVoucherNumber(page)
 }
 
 document
@@ -675,8 +683,11 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   for (const movement of movements) {
     const itemCode = String(movement.itemCode || '').trim()
     if (!itemCode) continue
-    if (!products.has(itemCode)) {
-      products.set(itemCode, {
+    const warehouseCode = String(movement.warehouseCode || '').trim()
+    const productKey = `${warehouseCode.toLocaleUpperCase('vi')}\u0000${itemCode.toLocaleUpperCase('vi')}`
+    if (!products.has(productKey)) {
+      products.set(productKey, {
+        warehouseCode,
         itemCode,
         itemName: movement.itemName || '',
         unit: movement.unit || '',
@@ -689,7 +700,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
         periodMovements: [],
       })
     }
-    const product = products.get(itemCode)
+    const product = products.get(productKey)
     if (!product.itemName && movement.itemName) product.itemName = movement.itemName
     if (!product.unit && movement.unit) product.unit = movement.unit
     const quantity = Number(movement.quantity) || 0
@@ -712,6 +723,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   }
 
   const productRows = [...products.values()].sort((left, right) =>
+    left.warehouseCode.localeCompare(right.warehouseCode, 'vi', { numeric: true }) ||
     left.itemCode.localeCompare(right.itemCode, 'vi', { numeric: true })
   )
   const summaryBody = document.querySelector(
@@ -724,7 +736,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   detailBody.replaceChildren()
 
   if (!productRows.length) {
-    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 16 }])
+    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 17 }])
     addReportRow(detailBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 10 }])
     return
   }
@@ -761,6 +773,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
 
     addReportRow(summaryBody, [
       index + 1,
+      product.warehouseCode,
       product.itemCode,
       product.itemName,
       product.unit,
@@ -780,7 +793,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
 
     addReportRow(
       detailBody,
-      [{ value: `Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}`, colSpan: 10 }],
+      [{ value: `Mã kho: ${product.warehouseCode || '(chưa có kho)'}　Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}`, colSpan: 10 }],
       'product-row'
     )
     addReportRow(
@@ -822,7 +835,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   addReportRow(
     summaryBody,
     [
-      { value: 'Cộng', colSpan: 4 },
+      { value: 'Cộng', colSpan: 5 },
       reportNumber(totals.openingQty),
       '',
       reportNumber(totals.openingAmount),
@@ -876,7 +889,16 @@ async function showInventoryReport(detail = false) {
     const result = await readApiJson(response, 'tải báo cáo nhập xuất tồn')
     if (!response.ok || !result.success)
       throw new Error(result.error || 'Không tải được dữ liệu báo cáo.')
-    renderInventoryReport(result.data.movements || [], from, contract)
+    const movements = result.data.movements || []
+    const selectedWarehouse = String(warehouse || '').trim().toLocaleUpperCase('vi')
+    const filteredMovements = selectedWarehouse
+      ? movements.filter(
+          movement =>
+            String(movement.warehouseCode || '').trim().toLocaleUpperCase('vi') ===
+            selectedWarehouse
+        )
+      : movements
+    renderInventoryReport(filteredMovements, from, contract)
   } catch (error) {
     notify(apiErrorMessage(error, 'Không tải được dữ liệu báo cáo.'))
     return false
@@ -889,9 +911,9 @@ async function showInventoryReport(detail = false) {
   document.querySelector('#paperFrom').textContent = displayDate(from)
   document.querySelector('#paperTo').textContent = displayDate(to)
   document.querySelector('#paperWarehouseName').textContent =
-    warehouseNames[warehouse] || warehouse
-  document.querySelector('#paperWarehouseCode').textContent = warehouse
-  document.querySelector('#paperContract').textContent = contract
+    warehouse ? warehouseNames[warehouse] || warehouse : 'Tất cả kho'
+  document.querySelector('#paperWarehouseCode').textContent = warehouse || 'Tất cả kho'
+  document.querySelector('#paperContract').textContent = contract || 'Tất cả hợp đồng'
   document.querySelector('#paperFormCode').textContent =
     `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${category}${item ? ` · ${item}` : ''}${productCode ? ` · Mã SP: ${productCode}` : ''}`
   document.querySelector('.paper-title').textContent = detail
@@ -1242,25 +1264,48 @@ function saveVoucher(status = 'Đã ghi') {
   return true
 }
 
-function nextNumber(type) {
-  const prefix = type === 'out' ? 'PX' : 'PN'
-  const savedMaximum = readVouchers()
-    .filter(item => item.type === type)
-    .reduce((max, item) => {
-      const number = Number(String(item.number).replace(/^\D+/, ''))
-      return Number.isFinite(number) ? Math.max(max, number) : max
-    }, 0)
-  const current =
-    documentType() === type
-      ? Number(documentNumber().replace(/^\D+/, '')) || 0
-      : 0
-  return `${prefix}${String(Math.max(savedMaximum, current) + 1).padStart(5, '0')}`
+async function nextNumber(type) {
+  const query = new URLSearchParams({
+    type,
+    currentVoucherNo: documentType() === type ? documentNumber() : '',
+  })
+  const response = await fetch(apiUrl(`/api/inventory-vouchers/next-number?${query}`))
+  const result = await readApiJson(response, 'lấy số chứng từ tiếp theo')
+  if (!response.ok || !result.success)
+    throw new Error(result.error || 'Không thể lấy số chứng từ tiếp theo.')
+  return result.data.voucherNo
 }
 
-function createVoucher(copyCurrent) {
+async function refreshNextVoucherNumber(type) {
+  const input = document.querySelector('.voucher')
+  input.value = ''
+  input.placeholder = 'Đang lấy số chứng từ...'
+  try {
+    const number = await nextNumber(type)
+    if (currentSavedId || documentType() !== type) return
+    input.value = number
+    input.placeholder = ''
+  } catch (error) {
+    if (documentType() !== type || currentSavedId) return
+    input.placeholder = 'Không tải được số chứng từ'
+    notify(apiErrorMessage(error, 'Không thể lấy số chứng từ từ database.'))
+  }
+}
+
+async function createVoucher(copyCurrent) {
   const type = documentType()
   const copiedRecord = copyCurrent ? captureVoucher('Nháp') : null
-  const newNumber = nextNumber(type)
+  const newButton = document.querySelector('#newVoucher')
+  newButton.disabled = true
+  let newNumber
+  try {
+    newNumber = await nextNumber(type)
+  } catch (error) {
+    notify(apiErrorMessage(error, 'Không thể lấy số chứng từ tiếp theo.'))
+    return
+  } finally {
+    newButton.disabled = false
+  }
   const controls = fieldControls()
   controls.forEach(control => {
     if (control.type === 'checkbox') control.checked = false
@@ -1716,6 +1761,7 @@ async function initializeUserAccess() {
     if (!response.ok || !result.success)
       throw new Error(result.error || 'Phiên đăng nhập đã hết hạn.')
     currentUser = result.data
+    await refreshNextVoucherNumber(documentType())
     const userLabel = document.querySelector('#currentUserLabel')
     userLabel.textContent = `Tài khoản: ${currentUser.username}`
     userLabel.hidden = false
