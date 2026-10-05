@@ -30,6 +30,7 @@ const databaseFile =
   process.env.DATABASE_FILE || path.join(__dirname, 'database.sqlite')
 const db = new Database(databaseFile)
 db.pragma('journal_mode = WAL')
+db.pragma('busy_timeout = 10000')
 db.pragma('foreign_keys = ON')
 
 db.exec(`
@@ -40,6 +41,11 @@ db.exec(`
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS warehouse_sites (
+    site_code TEXT PRIMARY KEY COLLATE NOCASE,
+    linked_stores TEXT NOT NULL DEFAULT '[]'
   );
 
   CREATE TABLE IF NOT EXISTS inventory_receipts (
@@ -144,18 +150,129 @@ db.exec(`
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'warehouse')),
     warehouse_code TEXT,
+    warehouse_codes TEXT NOT NULL DEFAULT '[]',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `)
 
-const WAREHOUSE_CODES = [
-  'KHO TONG CONG CTY',
-  'KHO AN HUNG',
-  'KHO AN THINH',
-  'KHO AN PHU',
-  'KHO AN PHAT',
-  'KHO VESTON',
+const WAREHOUSE_SITE_DATA = [
+  ['KHO TONG CONG TY', ['KHO TONG CONG TY']],
+  ['KHO AN HUNG', ['KHO AN HUNG NPL', 'KHO AN HUNG BTP CAT', 'KHO AN HUNG BTP MAY', 'KHO AN HUNG TP']],
+  ['KHO AN THINH', ['KHO AN THINH NPL', 'KHO AN THINH BTP CAT', 'KHO AN THINH BTP MAY', 'KHO AN THINH TP']],
+  ['KHO AN PHAT', ['KHO AN PHAT NPL', 'KHO AN PHAT BTP CAT', 'KHO AN PHAT BTP MAY', 'KHO AN PHAT TP']],
+  ['KHO AN PHU', ['KHO AN PHU NPL', 'KHO AN PHU BTP CAT', 'KHO AN PHU BTP MAY', 'KHO AN PHU TP']],
+  ['KHO VESTON', ['KHO VESTON NPL', 'KHO VESTON BTP CAT', 'KHO VESTON BTP MAY', 'KHO VESTON TP']],
 ]
+const upsertWarehouseSite = db.prepare(`
+  INSERT INTO warehouse_sites (site_code, linked_stores) VALUES (?, ?)
+  ON CONFLICT(site_code) DO UPDATE SET linked_stores = excluded.linked_stores
+`)
+const seedWarehouseSites = db.transaction(() => {
+  for (const [siteCode, linkedStores] of WAREHOUSE_SITE_DATA)
+    upsertWarehouseSite.run(siteCode, JSON.stringify(linkedStores))
+})
+const missingWarehouseSite = WAREHOUSE_SITE_DATA.some(([siteCode]) =>
+  !db.prepare('SELECT 1 FROM warehouse_sites WHERE site_code = ? COLLATE NOCASE').get(siteCode)
+)
+if (missingWarehouseSite) seedWarehouseSites()
+
+function availableLinkedStores() {
+  return [...new Set(db.prepare('SELECT linked_stores AS linkedStores FROM warehouse_sites').all()
+    .flatMap(site => {
+      try { return JSON.parse(site.linkedStores || '[]') } catch { return [] }
+    })
+    .map(cleanText)
+    .filter(Boolean))]
+}
+
+function normalizeWarehouseCodes(values) {
+  if (!Array.isArray(values)) return []
+  const available = new Map(availableLinkedStores().map(code => [code.toLocaleUpperCase('vi'), code]))
+  const normalized = []
+  for (const rawValue of values) {
+    const code = cleanText(rawValue)
+    if (!code) continue
+    const exactStore = available.get(code.toLocaleUpperCase('vi'))
+    if (exactStore) {
+      normalized.push(exactStore)
+      continue
+    }
+
+    // Older forms stored the company warehouse with the abbreviation "CTY",
+    // while linked_stores uses "TY". Accept both parent-site spellings.
+    const siteCode = code.toLocaleUpperCase('vi') === 'KHO TONG CONG CTY'
+      ? 'KHO TONG CONG TY'
+      : code
+    const site = db.prepare('SELECT site_code AS siteCode, linked_stores AS linkedStores FROM warehouse_sites WHERE site_code = ? COLLATE NOCASE').get(siteCode)
+    if (site) {
+      try { normalized.push(...JSON.parse(site.linkedStores || '[]').map(cleanText).filter(Boolean)) } catch {}
+    }
+  }
+  return [...new Set(normalized)]
+}
+
+function isValidWarehouseSelection(value) {
+  const code = cleanText(value)
+  if (!code) return false
+  const normalizedCode = code.toLocaleUpperCase('vi') === 'KHO TONG CONG CTY'
+    ? 'KHO TONG CONG TY'
+    : code
+  const available = new Set(availableLinkedStores().map(store => store.toLocaleUpperCase('vi')))
+  if (available.has(normalizedCode.toLocaleUpperCase('vi'))) return true
+  return Boolean(db.prepare('SELECT 1 FROM warehouse_sites WHERE site_code = ? COLLATE NOCASE').get(normalizedCode))
+}
+
+function expandWarehouseSite(siteCode) {
+  const selectedCode = cleanText(siteCode)
+  if (!selectedCode) return []
+  const site = db.prepare('SELECT linked_stores AS linkedStores FROM warehouse_sites WHERE site_code = ? COLLATE NOCASE').get(selectedCode)
+  let linkedStores = []
+  try { linkedStores = site ? JSON.parse(site.linkedStores || '[]') : [] } catch {}
+  return [...new Set([selectedCode, ...linkedStores.map(cleanText).filter(Boolean)])]
+}
+
+function assignedWarehouseCodes(user) {
+  try {
+    const codes = Array.isArray(user?.warehouseCodes)
+      ? user.warehouseCodes
+      : JSON.parse(user?.warehouseCodes || '[]')
+    if (Array.isArray(codes) && codes.length) return normalizeWarehouseCodes(codes)
+  } catch {}
+  if (user?.warehouseCode) {
+    const legacyCodes = String(user.warehouseCode).split(/[\r\n,;]+/).map(cleanText).filter(Boolean)
+    return normalizeWarehouseCodes(legacyCodes.flatMap(expandWarehouseSite))
+  }
+  return []
+}
+
+function permittedHeaderSites(warehouseCodes) {
+  const allowed = new Set(warehouseCodes.map(code => code.toLocaleUpperCase('vi')))
+  return db.prepare('SELECT site_code AS siteCode, linked_stores AS linkedStores FROM warehouse_sites').all()
+    .filter(site => {
+      let linked = []
+      try { linked = JSON.parse(site.linkedStores || '[]') } catch {}
+      return allowed.has(site.siteCode.toLocaleUpperCase('vi')) || linked.some(code => allowed.has(code.toLocaleUpperCase('vi')))
+    })
+    .map(site => site.siteCode)
+}
+
+function documentWarehouseViolation(body, session) {
+  const allowedCodes = assignedWarehouseCodes(session)
+  const allowed = new Set(allowedCodes.map(code => code.toLocaleUpperCase('vi')))
+  const permittedSites = new Set(permittedHeaderSites(allowedCodes).map(code => code.toLocaleUpperCase('vi')))
+  const headerCode = cleanText(body.warehouseCode)
+  if (!allowedCodes.length) return 'Tài khoản chưa được gán kho thao tác.'
+  if (headerCode && !allowed.has(headerCode.toLocaleUpperCase('vi')) && !permittedSites.has(headerCode.toLocaleUpperCase('vi'))) {
+    return 'Kho trên chứng từ không nằm trong phạm vi tài khoản.'
+  }
+  const items = Array.isArray(body.items) ? body.items : []
+  if (!items.length) return 'Phiếu cần có ít nhất một dòng hàng thuộc kho được phân quyền.'
+  if (items.some(item => {
+    const code = cleanText(item.warehouseCode) || headerCode
+    return !code || !allowed.has(code.toLocaleUpperCase('vi'))
+  })) return 'Có dòng hàng thuộc kho chưa được phân quyền cho tài khoản.'
+  return ''
+}
 
 const adminSessions = new Map()
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000
@@ -228,14 +345,14 @@ app.post('/api/auth/setup', (req, res) => {
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
   db.prepare('INSERT INTO admin_users (username, password_salt, password_hash) VALUES (?, ?, ?)').run(username, salt, hash)
-  setAdminSession(res, req, { username, role: 'admin', warehouseCode: null })
+  setAdminSession(res, req, { username, role: 'admin', warehouseCode: null, warehouseCodes: [] })
   res.status(201).json({ success: true, data: { username } })
 })
 
 app.post('/api/auth/login', (req, res) => {
   const username = cleanText(req.body?.username)
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
-  const admin = db.prepare('SELECT username, password_salt, password_hash, role, warehouse_code AS warehouseCode FROM admin_users WHERE username = ?').get(username)
+  const admin = db.prepare('SELECT username, password_salt, password_hash, role, warehouse_code AS warehouseCode, warehouse_codes AS warehouseCodes FROM admin_users WHERE username = ?').get(username)
   const suppliedHash = admin
     ? crypto.scryptSync(password, admin.password_salt, 64)
     : crypto.scryptSync(password, 'invalid-admin-login-salt', 64)
@@ -249,6 +366,7 @@ app.post('/api/auth/login', (req, res) => {
     username: admin.username,
     role: admin.role || 'admin',
     warehouseCode: admin.warehouseCode || null,
+    warehouseCodes: assignedWarehouseCodes(admin),
   })
   res.json({ success: true, data: { username: admin.username, role: admin.role || 'admin' } })
 })
@@ -282,6 +400,7 @@ app.get(['/', '/index.html'], requireAdmin, (_req, res) =>
 app.use('/api', requireAdmin)
 ensureColumn('admin_users', 'role', "TEXT NOT NULL DEFAULT 'admin'")
 ensureColumn('admin_users', 'warehouse_code', 'TEXT')
+ensureColumn('admin_users', 'warehouse_codes', "TEXT NOT NULL DEFAULT '[]'")
 app.get('/api/auth/me', (req, res) => {
   res.json({ success: true, data: req.adminSession })
 })
@@ -294,14 +413,20 @@ function requireAdminRole(req, res, next) {
 }
 
 app.get('/api/admin/users', requireAdminRole, (_req, res) => {
-  const users = db.prepare("SELECT id, username, warehouse_code AS warehouseCode, created_at AS createdAt FROM admin_users WHERE role = 'warehouse' ORDER BY username COLLATE NOCASE").all()
+  const users = db.prepare("SELECT id, username, warehouse_code AS warehouseCode, warehouse_codes AS warehouseCodes, created_at AS createdAt FROM admin_users WHERE role = 'warehouse' ORDER BY username COLLATE NOCASE").all()
+    .map(user => ({ ...user, warehouseCodes: assignedWarehouseCodes(user) }))
   res.json({ success: true, data: users })
 })
 
 app.post('/api/admin/users', requireAdminRole, (req, res) => {
   const username = cleanText(req.body?.username)
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
-  const warehouseCode = cleanText(req.body?.warehouseCode)
+  const requestedCodes = Array.isArray(req.body?.warehouseCodes)
+    ? req.body.warehouseCodes
+    : req.body?.warehouseCode
+      ? expandWarehouseSite(req.body.warehouseCode)
+      : []
+  const warehouseCodes = normalizeWarehouseCodes(requestedCodes)
   if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) {
     res.status(400).json({ success: false, error: 'Tên đăng nhập cần từ 3 đến 40 ký tự gồm chữ, số, dấu chấm, gạch dưới hoặc gạch ngang.' })
     return
@@ -310,18 +435,24 @@ app.post('/api/admin/users', requireAdminRole, (req, res) => {
     res.status(400).json({ success: false, error: 'Mật khẩu cần có ít nhất 8 ký tự.' })
     return
   }
-  if (!WAREHOUSE_CODES.includes(warehouseCode)) {
-    res.status(400).json({ success: false, error: 'Mã kho không hợp lệ.' })
+  if (!warehouseCodes.length || requestedCodes.some(code => !isValidWarehouseSelection(code))) {
+    res.status(400).json({ success: false, error: 'Vui lòng chọn ít nhất một kho hợp lệ trong danh sách kho liên kết.' })
     return
   }
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
   try {
-    const result = db.prepare("INSERT INTO admin_users (username, password_salt, password_hash, role, warehouse_code) VALUES (?, ?, ?, 'warehouse', ?)").run(username, salt, hash, warehouseCode)
-    res.status(201).json({ success: true, data: { id: Number(result.lastInsertRowid), username, warehouseCode } })
+    const headerSite = permittedHeaderSites(warehouseCodes)[0] || warehouseCodes[0]
+    const result = db.prepare("INSERT INTO admin_users (username, password_salt, password_hash, role, warehouse_code, warehouse_codes) VALUES (?, ?, ?, 'warehouse', ?, ?)").run(username, salt, hash, headerSite, JSON.stringify(warehouseCodes))
+    res.status(201).json({ success: true, data: { id: Number(result.lastInsertRowid), username, warehouseCode: headerSite, warehouseCodes } })
   } catch (error) {
+    console.error('Không thể tạo tài khoản kho:', error)
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       res.status(409).json({ success: false, error: 'Tên đăng nhập đã tồn tại.' })
+      return
+    }
+    if (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED') {
+      res.status(503).json({ success: false, error: 'Database đang bị khóa bởi một tiến trình khác. Đóng cửa sổ/chương trình đang mở database.sqlite rồi thử lại.' })
       return
     }
     res.status(500).json({ success: false, error: 'Không thể tạo tài khoản.' })
@@ -358,6 +489,7 @@ app.post('/api/auth/change-password', (req, res) => {
     username: session.username,
     role: session.role,
     warehouseCode: session.warehouseCode,
+    warehouseCodes: assignedWarehouseCodes(session),
   })
   res.json({ success: true })
 })
@@ -447,6 +579,12 @@ app.get('/api/delivery-people', (req, res) => {
     )
     .all()
   res.json({ success: true, data: people })
+})
+
+app.get('/api/warehouse-sites', (_req, res) => {
+  const sites = db.prepare('SELECT site_code AS siteCode, linked_stores AS linkedStores FROM warehouse_sites ORDER BY rowid').all()
+    .map(site => ({ ...site, linkedStores: JSON.parse(site.linkedStores) }))
+  res.json({ success: true, data: sites })
 })
 
 app.post('/api/delivery-people', requireAdminRole, (req, res) => {
@@ -623,16 +761,9 @@ app.post('/api/inventory-receipts', (req, res) => {
   try {
     const body = req.body || {}
     if (req.adminSession.role !== 'admin') {
-      const assignedWarehouse = req.adminSession.warehouseCode
-      if (
-        !assignedWarehouse ||
-        cleanText(body.warehouseCode).toLocaleUpperCase('vi') !== assignedWarehouse ||
-        (body.items || []).some(item => {
-          const itemWarehouse = cleanText(item.warehouseCode)
-          return itemWarehouse && itemWarehouse.toLocaleUpperCase('vi') !== assignedWarehouse
-        })
-      ) {
-        res.status(403).json({ success: false, error: 'Phiếu chỉ được lập cho kho đã gán cho tài khoản.' })
+      const violation = documentWarehouseViolation(body, req.adminSession)
+      if (violation) {
+        res.status(403).json({ success: false, error: violation })
         return
       }
       if (db.prepare('SELECT 1 FROM inventory_receipts WHERE voucher_no = ? COLLATE NOCASE').get(cleanText(body.voucherNo))) {
@@ -651,10 +782,14 @@ app.get('/api/inventory-receipts', (req, res) => {
   const query = String(req.query.q || '').trim()
   const escaped = query.replace(/[\\%_]/g, value => `\\${value}`)
   const isAdmin = req.adminSession.role === 'admin'
+  const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+  const warehouseMatch = warehouseCodes.length
+    ? `COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, '')) COLLATE NOCASE IN (${warehouseCodes.map(() => '?').join(',')})`
+    : '0 = 1'
   const warehouseJoin = isAdmin
     ? ''
-    : "AND COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, '')) = ? COLLATE NOCASE"
-  const warehouseFilter = isAdmin ? '' : 'AND r.warehouse_code = ? COLLATE NOCASE'
+    : `AND ${warehouseMatch}`
+  const warehouseVisibility = isAdmin ? '' : 'AND d.receipt_id IS NOT NULL'
   const rows = db.prepare(`
     SELECT r.id, r.voucher_no AS voucherNo, r.voucher_date AS voucherDate,
       r.deliverer_name AS delivererName, r.address, r.transporter_name AS transporterName,
@@ -673,9 +808,9 @@ app.get('/api/inventory-receipts', (req, res) => {
       d.unit, d.quantity, d.unit_price AS unitPrice
     FROM inventory_receipts r
     LEFT JOIN inventory_receipt_details d ON d.receipt_id = r.id ${warehouseJoin}
-    WHERE r.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseFilter}
+    WHERE r.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility}
     ORDER BY r.voucher_no, d.line_number
-  `).all(...(isAdmin ? [] : [req.adminSession.warehouseCode]), `%${escaped}%`, ...(isAdmin ? [] : [req.adminSession.warehouseCode]))
+  `).all(...warehouseCodes, `%${escaped}%`)
   const receipts = [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
     ...row,
     items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({
@@ -769,16 +904,9 @@ app.post('/api/inventory-issues', (req, res) => {
   try {
     const body = req.body || {}
     if (req.adminSession.role !== 'admin') {
-      const assignedWarehouse = req.adminSession.warehouseCode
-      if (
-        !assignedWarehouse ||
-        cleanText(body.warehouseCode).toLocaleUpperCase('vi') !== assignedWarehouse ||
-        (body.items || []).some(item => {
-          const itemWarehouse = cleanText(item.warehouseCode)
-          return itemWarehouse && itemWarehouse.toLocaleUpperCase('vi') !== assignedWarehouse
-        })
-      ) {
-        res.status(403).json({ success: false, error: 'Phiếu chỉ được lập cho kho đã gán cho tài khoản.' })
+      const violation = documentWarehouseViolation(body, req.adminSession)
+      if (violation) {
+        res.status(403).json({ success: false, error: violation })
         return
       }
       if (db.prepare('SELECT 1 FROM inventory_issues WHERE voucher_no = ? COLLATE NOCASE').get(cleanText(body.voucherNo))) {
@@ -795,11 +923,15 @@ app.post('/api/inventory-issues', (req, res) => {
 app.get('/api/inventory-issues', (req, res) => {
   const query = String(req.query.q || '').trim().replace(/[\\%_]/g, value => `\\${value}`)
   const isAdmin = req.adminSession.role === 'admin'
+  const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+  const warehouseMatch = warehouseCodes.length
+    ? `COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(i.warehouse_code, '')) COLLATE NOCASE IN (${warehouseCodes.map(() => '?').join(',')})`
+    : '0 = 1'
   const warehouseJoin = isAdmin
     ? ''
-    : "AND COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(i.warehouse_code, '')) = ? COLLATE NOCASE"
-  const warehouseFilter = isAdmin ? '' : 'AND i.warehouse_code = ? COLLATE NOCASE'
-  const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseFilter} ORDER BY i.voucher_no,d.line_number`).all(...(isAdmin ? [] : [req.adminSession.warehouseCode]), `%${query}%`, ...(isAdmin ? [] : [req.adminSession.warehouseCode]))
+    : `AND ${warehouseMatch}`
+  const warehouseVisibility = isAdmin ? '' : 'AND d.issue_id IS NOT NULL'
+  const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
   const records = [...new Map(rows.map(row => [row.id,row])).values()].map(row => ({
     ...row,
     items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,quantity:detail.quantity,unitPrice:detail.unitPrice })),
@@ -816,16 +948,25 @@ app.get('/api/inventory-report', (req, res) => {
       : ''
     const clauses = []
     const params = []
-    const warehouseFilter = req.adminSession.role === 'admin'
-      ? cleanText(filters.warehouse)
-      : req.adminSession.warehouseCode
+    const isAdmin = req.adminSession.role === 'admin'
+    const selectedCode = cleanText(filters.warehouse)
+    const assignedCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+    let warehouseCodes = []
+    if (isAdmin) {
+      warehouseCodes = selectedCode ? expandWarehouseSite(selectedCode) : []
+    } else {
+      const allowed = new Set(assignedCodes.map(code => code.toLocaleUpperCase('vi')))
+      const requested = selectedCode ? expandWarehouseSite(selectedCode) : assignedCodes
+      warehouseCodes = requested.filter(code => allowed.has(code.toLocaleUpperCase('vi')))
+      if (!warehouseCodes.length) clauses.push('0 = 1')
+    }
     if (filters.toDate) {
       clauses.push('movementDate <= ?')
       params.push(parseOptionalDate(filters.toDate, 'Đến ngày', true))
     }
-    if (warehouseFilter) {
-      clauses.push('warehouseCode = ? COLLATE NOCASE')
-      params.push(warehouseFilter)
+    if (warehouseCodes.length) {
+      clauses.push(`warehouseCode COLLATE NOCASE IN (${warehouseCodes.map(() => '?').join(',')})`)
+      params.push(...warehouseCodes)
     }
     if (filters.productCode) {
       clauses.push("itemCode LIKE ? ESCAPE '\\' COLLATE NOCASE")
@@ -922,16 +1063,9 @@ app.post('/api/inventory-vouchers/split', (req, res) => {
     if (!body.voucher || !Array.isArray(body.voucher.items))
       throw new Error('Dữ liệu phiếu không hợp lệ.')
     if (req.adminSession.role !== 'admin') {
-      const assignedWarehouse = req.adminSession.warehouseCode
-      if (
-        !assignedWarehouse ||
-        cleanText(body.voucher.warehouseCode).toLocaleUpperCase('vi') !== assignedWarehouse ||
-        body.voucher.items.some(item => {
-          const itemWarehouse = cleanText(item.warehouseCode)
-          return itemWarehouse && itemWarehouse.toLocaleUpperCase('vi') !== assignedWarehouse
-        })
-      ) {
-        res.status(403).json({ success: false, error: 'Phiếu chỉ được lập cho kho đã gán cho tài khoản.' })
+      const violation = documentWarehouseViolation(body.voucher, req.adminSession)
+      if (violation) {
+        res.status(403).json({ success: false, error: violation })
         return
       }
     }

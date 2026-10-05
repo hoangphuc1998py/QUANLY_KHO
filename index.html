@@ -85,7 +85,7 @@
                     class="warehouse-picker"
                     aria-label="Chọn kho">
                     <option value="">Chọn kho</option>
-                    <option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option>
+                    <option value="KHO TONG CONG TY">KHO TONG CONG TY</option>
                     <option value="KHO AN HUNG">KHO AN HUNG</option>
                     <option value="KHO AN THINH">KHO AN THINH</option>
                     <option value="KHO AN PHU">KHO AN PHU</option>
@@ -1197,21 +1197,13 @@
     </dialog>
     <dialog id="createWarehouseUserDialog" class="password-dialog">
       <form id="createWarehouseUserForm">
-        <header><div><h2>Tạo tài khoản kho</h2><p>Tài khoản mới chỉ được lập phiếu nhập ở kho được chọn.</p></div><button type="button" id="closeCreateUserDialog" aria-label="Đóng">×</button></header>
+        <header><div><h2>Tạo tài khoản kho</h2><p>User chỉ được lập phiếu nhập, xuất và xem báo cáo tại các kho được cấp.</p></div><button type="button" id="closeCreateUserDialog" aria-label="Đóng">×</button></header>
         <label for="newUsername">Tên đăng nhập</label>
         <input id="newUsername" autocomplete="off" minlength="3" maxlength="40" placeholder="Ví dụ: tuan_ap" required>
         <label for="newUserPassword">Mật khẩu ban đầu</label>
         <input id="newUserPassword" type="password" autocomplete="new-password" minlength="8" required>
-        <label for="newUserWarehouse">Kho được thao tác</label>
-        <select id="newUserWarehouse" required>
-          <option value="">Chọn kho</option>
-          <option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option>
-          <option value="KHO AN HUNG">KHO AN HUNG</option>
-          <option value="KHO AN THINH">KHO AN THINH</option>
-          <option value="KHO AN PHU">KHO AN PHU</option>
-          <option value="KHO AN PHAT">KHO AN PHAT</option>
-          <option value="KHO VESTON">KHO VESTON</option>
-        </select>
+        <span class="warehouse-access-label">Kho được thao tác</span>
+        <div id="newUserWarehouses" class="warehouse-access-options" role="group" aria-label="Chọn các kho được thao tác"></div>
         <p class="password-message" id="createUserMessage" role="alert" aria-live="polite"></p>
         <footer><button type="button" id="cancelCreateUser">Hủy</button><button type="submit" id="saveNewUser">Tạo user</button></footer>
       </form>
