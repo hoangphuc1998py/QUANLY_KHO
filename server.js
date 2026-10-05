@@ -42,6 +42,11 @@ db.exec(`
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS warehouse_sites (
+    site_code TEXT PRIMARY KEY COLLATE NOCASE,
+    linked_stores TEXT NOT NULL DEFAULT '[]'
+  );
+
   CREATE TABLE IF NOT EXISTS inventory_receipts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     delivery_person_id INTEGER,
@@ -156,6 +161,24 @@ const WAREHOUSE_CODES = [
   'KHO AN PHAT',
   'KHO VESTON',
 ]
+
+const WAREHOUSE_SITE_DATA = [
+  ['KHO TONG CONG TY', ['KHO TONG CONG TY']],
+  ['KHO AN HUNG', ['KHO AN HUNG NPL', 'KHO AN HUNG BTP CAT', 'KHO AN HUNG BTP MAY', 'KHO AN HUNG TP']],
+  ['KHO AN THINH', ['KHO AN THINH NPL', 'KHO AN THINH BTP CAT', 'KHO AN THINH BTP MAY', 'KHO AN THINH TP']],
+  ['KHO AN PHAT', ['KHO AN PHAT NPL', 'KHO AN PHAT BTP CAT', 'KHO AN PHAT BTP MAY', 'KHO AN PHAT TP']],
+  ['KHO AN PHU', ['KHO AN PHU NPL', 'KHO AN PHU BTP CAT', 'KHO AN PHU BTP MAY', 'KHO AN PHU TP']],
+  ['KHO VESTON', ['KHO VESTON NPL', 'KHO VESTON BTP CAT', 'KHO VESTON BTP MAY', 'KHO VESTON TP']],
+]
+const upsertWarehouseSite = db.prepare(`
+  INSERT INTO warehouse_sites (site_code, linked_stores) VALUES (?, ?)
+  ON CONFLICT(site_code) DO UPDATE SET linked_stores = excluded.linked_stores
+`)
+const seedWarehouseSites = db.transaction(() => {
+  for (const [siteCode, linkedStores] of WAREHOUSE_SITE_DATA)
+    upsertWarehouseSite.run(siteCode, JSON.stringify(linkedStores))
+})
+seedWarehouseSites()
 
 const adminSessions = new Map()
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000
@@ -447,6 +470,12 @@ app.get('/api/delivery-people', (req, res) => {
     )
     .all()
   res.json({ success: true, data: people })
+})
+
+app.get('/api/warehouse-sites', (_req, res) => {
+  const sites = db.prepare('SELECT site_code AS siteCode, linked_stores AS linkedStores FROM warehouse_sites ORDER BY rowid').all()
+    .map(site => ({ ...site, linkedStores: JSON.parse(site.linkedStores) }))
+  res.json({ success: true, data: sites })
 })
 
 app.post('/api/delivery-people', requireAdminRole, (req, res) => {
@@ -910,6 +939,15 @@ function nextDatabaseVoucherNumber(type, currentVoucherNo) {
   if (currentMatch) maximum = Math.max(maximum, Number(currentMatch[1]) || 0)
   return `${prefix}${String(maximum + 1).padStart(5, '0')}`
 }
+
+app.get('/api/inventory-vouchers/next-number', (req, res) => {
+  const type = req.query.type === 'out' ? 'out' : req.query.type === 'in' ? 'in' : null
+  if (!type) {
+    res.status(400).json({ success: false, error: 'Loại phiếu không hợp lệ.' })
+    return
+  }
+  res.json({ success: true, data: { voucherNo: nextDatabaseVoucherNumber(type) } })
+})
 
 app.post('/api/inventory-vouchers/split', (req, res) => {
   try {
