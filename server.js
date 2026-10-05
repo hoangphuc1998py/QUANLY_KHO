@@ -963,9 +963,9 @@ app.post('/api/inventory-vouchers/split', (req, res) => {
 })
 
 if (require.main === module) {
-  app.listen(3000, () => {
+  app.listen(8080, '0.0.0.0', () => {
     console.log(
-      `Server SQLite đang chạy tại http://localhost:3000 (database: ${databaseFile})`
+      `Server SQLite đang chạy tại http://0.0.0.0:8080 (database: ${databaseFile})`
     )
   })
 }

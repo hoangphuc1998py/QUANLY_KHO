@@ -5,11 +5,15 @@ const loginMessage = document.querySelector('#loginMessage')
 const passwordInput = document.querySelector('#password')
 const submitLogin = document.querySelector('#submitLogin')
 const setupNote = document.querySelector('#setupNote')
+const loginScene = document.querySelector('#loginScene')
+const loginPanel = document.querySelector('#loginPanel')
+const lampPull = document.querySelector('#lampPull')
+const pullHint = document.querySelector('#pullHint')
 let setupRequired = false
 const authApiBase =
-  window.location.port === '3000'
+  window.location.port === '8080'
     ? ''
-    : `${window.location.protocol}//${window.location.hostname}:3000`
+    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8080`
 
 async function initializeLogin() {
   try {
@@ -19,7 +23,7 @@ async function initializeLogin() {
     const result = await response.json()
     setupRequired = Boolean(result.setupRequired)
     if (setupRequired) {
-      loginTitle.textContent = 'Tạo tài khoản quản trị'
+      loginTitle.textContent = 'Chào mừng'
       loginIntro.textContent = 'Thiết lập tài khoản admin đầu tiên cho hệ thống.'
       passwordInput.autocomplete = 'new-password'
       passwordInput.minLength = 12
@@ -27,12 +31,62 @@ async function initializeLogin() {
       submitLogin.textContent = 'Tạo tài khoản và đăng nhập'
       setupNote.classList.remove('hidden')
     }
-    document.querySelector('#username').focus()
   } catch {
     loginMessage.textContent = 'Không kết nối được máy chủ. Hãy chạy npm start rồi tải lại trang.'
     submitLogin.disabled = true
   }
 }
+
+function revealLogin() {
+  if (loginScene.classList.contains('is-open')) return
+  loginScene.classList.add('is-open')
+  loginPanel.inert = false
+  lampPull.setAttribute('aria-expanded', 'true')
+  pullHint.textContent = 'Biểu mẫu đăng nhập đã mở'
+  window.setTimeout(() => document.querySelector('#username').focus(), 450)
+}
+
+function hideLogin() {
+  if (!loginScene.classList.contains('is-open')) return
+  loginScene.classList.remove('is-open')
+  loginPanel.inert = true
+  lampPull.setAttribute('aria-expanded', 'false')
+  pullHint.textContent = 'Kéo dây đèn để đăng nhập'
+  lampPull.focus()
+}
+
+function toggleLogin() {
+  if (loginScene.classList.contains('is-open')) hideLogin()
+  else revealLogin()
+}
+
+let pullStartY = null
+let suppressPullClick = false
+lampPull.addEventListener('pointerdown', event => {
+  pullStartY = event.clientY
+  lampPull.setPointerCapture(event.pointerId)
+})
+lampPull.addEventListener('pointerup', event => {
+  if (pullStartY !== null) {
+    const movement = event.clientY - pullStartY
+    if (movement > 5) {
+      revealLogin()
+      suppressPullClick = true
+    } else if (movement < -5) {
+      hideLogin()
+      suppressPullClick = true
+    }
+  }
+  pullStartY = null
+})
+lampPull.addEventListener('pointercancel', () => { pullStartY = null })
+lampPull.addEventListener('click', () => {
+  if (suppressPullClick) {
+    suppressPullClick = false
+    return
+  }
+  toggleLogin()
+})
 
 loginForm.addEventListener('submit', async event => {
   event.preventDefault()

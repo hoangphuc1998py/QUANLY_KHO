@@ -3,22 +3,39 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f3f6fb" />
-    <title>Đăng nhập quản trị · ANHUCO</title>
+    <meta name="theme-color" content="#171a19" />
+    <title>Đăng nhập · ANHUCO</title>
     <link rel="stylesheet" href="/admin.css" />
   </head>
   <body>
-    <main class="login-layout">
-      <section class="login-card" aria-labelledby="loginTitle">
-        <div class="brand-mark" aria-hidden="true">A</div>
-        <p class="eyebrow">ANHUCO · QUẢN LÝ KHO</p>
-        <h1 id="loginTitle">Đăng nhập quản trị</h1>
+    <main class="login-layout" id="loginScene">
+      <div class="scene-glow" aria-hidden="true"></div>
+      <section class="lamp-area" aria-label="Đèn bàn">
+        <div class="lamp-light" aria-hidden="true"></div>
+        <div class="lamp-shade" aria-hidden="true"></div>
+        <div class="lamp-stem" aria-hidden="true"></div>
+        <div class="lamp-base" aria-hidden="true"></div>
+        <div class="lamp-cord" aria-hidden="true"></div>
+        <button
+          class="lamp-pull"
+          id="lampPull"
+          type="button"
+          aria-label="Kéo dây đèn để mở biểu mẫu đăng nhập"
+          aria-controls="loginPanel"
+          aria-expanded="false">
+          <span aria-hidden="true"></span>
+        </button>
+        <p class="pull-hint" id="pullHint">Kéo dây đèn để đăng nhập</p>
+      </section>
+
+      <section class="login-panel" id="loginPanel" aria-labelledby="loginTitle" inert>
+        <h1 id="loginTitle">Chào mừng</h1>
         <p class="intro" id="loginIntro">Đăng nhập để tiếp tục vào hệ thống.</p>
         <form id="loginForm" autocomplete="on">
           <label for="username">Tên đăng nhập</label>
-          <input id="username" name="username" autocomplete="username" required minlength="3" maxlength="40" />
+          <input id="username" name="username" autocomplete="username" placeholder="Nhập tên đăng nhập" required minlength="3" maxlength="40" />
           <label for="password">Mật khẩu</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required />
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" required />
           <p class="message" id="loginMessage" role="alert" aria-live="polite"></p>
           <button id="submitLogin" type="submit">Đăng nhập</button>
         </form>

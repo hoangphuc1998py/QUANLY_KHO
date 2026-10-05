@@ -5,7 +5,9 @@ let currentUser = null
 // The UI may be opened from a preview server or directly from the HTML file.
 // In both cases, keep API requests pointed at the Express server.
 const apiBaseUrl =
-  window.location.port === '3000' ? '' : 'http://localhost:3000'
+  window.location.port === '8080'
+    ? ''
+    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8080`
 
 function apiUrl(path) {
   return `${apiBaseUrl}${path}`
@@ -22,7 +24,7 @@ async function readApiJson(response, action) {
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.toLowerCase().includes('application/json')) {
     throw new Error(
-      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). Máy chủ ở cổng 3000 đang chạy phiên bản cũ; hãy khởi động lại bằng npm start.`
+      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). Máy chủ ở cổng 8080 đang chạy phiên bản cũ; hãy khởi động lại bằng npm start.`
     )
   }
   try {
