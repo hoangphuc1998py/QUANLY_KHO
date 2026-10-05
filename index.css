@@ -415,6 +415,50 @@ th:nth-child(9) {
   box-shadow: inset 0 0 0 1px #5296d6;
   background: #f8fbff;
 }
+.item-row td:has(> .linked-warehouse-label) {
+  position: relative;
+  min-height: 38px;
+  height: auto;
+  padding: 5px 23px 5px 8px;
+  background: #fff;
+  transition: background 0.15s ease;
+  white-space: normal;
+}
+.item-row td:has(> .linked-warehouse-label):focus-within {
+  background: #f4f8ff;
+  box-shadow: inset 0 0 0 1px #8bb5ef;
+}
+.item-row .linked-warehouse-label {
+  display: block;
+  min-height: 27px;
+  color: #334155;
+  font: 11px/1.3 Inter, 'Segoe UI', sans-serif;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.item-row select[data-linked-warehouse] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  appearance: none;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+.item-row select[data-linked-warehouse]:disabled {
+  cursor: default;
+}
+.item-row select[data-linked-warehouse] option {
+  color: #334155;
+  background: #fff;
+}
 .item-row .row-marker {
   width: 34px;
   padding: 7px 10px;
@@ -2068,6 +2112,14 @@ th:nth-child(9) {
   body.printing-voucher #itemsTable th,
   body.printing-voucher #itemsTable td {
     padding: 4px 3px;
+  }
+  body.printing-voucher .item-row select[data-linked-warehouse] {
+    display: none;
+  }
+  body.printing-voucher .item-row .linked-warehouse-label {
+    min-height: 0;
+    color: #111827;
+    font-size: 8px;
   }
   body.printing-voucher .totals {
     margin-top: 8px;
