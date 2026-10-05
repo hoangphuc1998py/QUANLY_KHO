@@ -270,7 +270,7 @@ function importExcelRows(matrix) {
     )
 
   const template = tableBody.querySelector('.item-row')
-  const warehouseColumn = documentType() === 'out' ? 6 : 5
+  const warehouseColumn = 5
   const hasExistingItems = rows().some(row =>
     [...row.querySelectorAll('[contenteditable="true"]')].some(cell =>
       cell.textContent.trim()
@@ -280,7 +280,7 @@ function importExcelRows(matrix) {
   for (const item of imported) {
     const row = template.cloneNode(true)
     const isIssue = documentType() === 'out'
-    const warehouseColumn = isIssue ? 6 : 5
+    const warehouseColumn = 5
     const values = isIssue
       ? [
           '',
@@ -288,8 +288,8 @@ function importExcelRows(matrix) {
           item.itemCode,
           item.itemName,
           item.ecusItemCode,
-          item.unit,
           item.warehouseCode,
+          item.unit,
           item.debitAccount,
           item.creditAccount,
           item.quantity,
@@ -418,8 +418,8 @@ const pagePresets = {
       'Mã SP',
       'Tên hàng',
       'Mã hàng ECUS',
-      'Đơn vị tính',
       'Kho',
+      'Đơn vị tính',
       'TK Nợ',
       'TK Có',
       'Số lượng',
@@ -528,6 +528,17 @@ function changePage(page) {
     return
   }
   const config = pagePresets[page]
+  if (previousType && previousType !== page) {
+    // Receipt rows store warehouse/debit/credit/unit at columns 5–8;
+    // issue rows display warehouse/unit/debit/credit in those columns.
+    const columnOrder =
+      page === 'out' ? [5, 8, 6, 7] : [5, 7, 8, 6]
+    rows().forEach(row => {
+      const endMarker = row.cells[9]
+      const reorderedCells = columnOrder.map(index => row.cells[index])
+      reorderedCells.forEach(cell => row.insertBefore(cell, endMarker))
+    })
+  }
   if (previousType && previousType !== page) currentSavedId = null
   document.querySelector('.titlebar strong').textContent = config.title
   document.querySelector('.general-box .form-row span').innerHTML =
@@ -633,8 +644,7 @@ function refreshLinkedWarehouseCells(resetInvalid = false) {
   const stores = linkedStoresFor(
     document.querySelector('#warehousePicker').value
   )
-  const warehouseColumn =
-    document.querySelector('.page').dataset.documentType === 'out' ? 6 : 5
+  const warehouseColumn = 5
   rows().forEach(row => {
     const cell = row.cells[warehouseColumn]
     if (!cell || cell.getAttribute('aria-readonly') === 'true') return
@@ -1260,8 +1270,8 @@ function collectIssueItems() {
       itemCode: cellValue(row, 2),
       itemName: cellValue(row, 3),
       ecusItemCode: cellValue(row, 4),
-      warehouseCode: cellValue(row, 6),
-      unit: cellValue(row, 5),
+      warehouseCode: cellValue(row, 5),
+      unit: cellValue(row, 6),
       debitAccount: cellValue(row, 7),
       creditAccount: cellValue(row, 8),
       quantity: parseTableNumber(cellValue(row, 9)),
@@ -1805,7 +1815,7 @@ function loadIssueVoucher(record) {
   tableBody.replaceChildren()
   ;(record.items || []).forEach(item => {
     const row = template.cloneNode(true)
-    const warehouseColumn = 6
+    const warehouseColumn = 5
     const values = [
       '',
       '',
@@ -1813,9 +1823,9 @@ function loadIssueVoucher(record) {
       item.itemName,
       item.ecusItemCode,
       item.warehouseCode,
+      item.unit,
       item.debitAccount,
       item.creditAccount,
-      item.unit,
       String(item.quantity ?? ''),
       String(item.unitPrice ?? ''),
       '',
@@ -2126,7 +2136,7 @@ function applyWarehouseRestrictions() {
   document.querySelector('#warehouseName').value =
     warehouseNames[picker.value] || headerSite?.siteCode || picker.value
   refreshLinkedWarehouseCells(true)
-  const warehouseColumn = document.querySelector('.page').dataset.documentType === 'out' ? 6 : 5
+  const warehouseColumn = 5
   rows().forEach(row => {
     const cell = row.children[warehouseColumn]
     if (!cell) return
