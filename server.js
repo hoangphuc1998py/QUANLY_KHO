@@ -90,6 +90,7 @@ db.exec(`
     debit_account TEXT,
     credit_account TEXT,
     unit TEXT,
+    color TEXT,
     quantity REAL DEFAULT 0,
     unit_price REAL DEFAULT 0,
     amount REAL DEFAULT 0,
@@ -135,6 +136,7 @@ db.exec(`
     debit_account TEXT,
     credit_account TEXT,
     unit TEXT,
+    color TEXT,
     quantity REAL DEFAULT 0,
     unit_price REAL DEFAULT 0,
     amount REAL DEFAULT 0,
@@ -511,6 +513,8 @@ function ensureColumn(tableName, columnName, columnDefinition) {
 // Keep databases created by earlier versions compatible with the new receipt fields.
 ensureColumn('inventory_receipts', 'delivery_person_id', 'INTEGER')
 ensureColumn('inventory_receipts', 'product_code', 'TEXT')
+ensureColumn('inventory_receipt_details', 'color', 'TEXT')
+ensureColumn('inventory_issue_details', 'color', 'TEXT')
 
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_delivery_people_active_name
@@ -628,8 +632,8 @@ const insertReceipt = db.prepare(`
 const insertReceiptDetail = db.prepare(`
   INSERT INTO inventory_receipt_details (
     receipt_id, line_number, item_code, item_name, ecus_item_code, warehouse_code,
-    debit_account, credit_account, unit, quantity, unit_price, amount
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    debit_account, credit_account, unit, color, quantity, unit_price, amount
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `)
 
 const updateReceipt = db.prepare(`
@@ -682,6 +686,7 @@ const createReceipt = db.transaction(body => {
       debitAccount: cleanText(item.debitAccount) || null,
       creditAccount: cleanText(item.creditAccount) || null,
       unit: cleanText(item.unit) || null,
+      color: cleanText(item.color) || null,
       quantity,
       unitPrice,
       amount: quantity * unitPrice,
@@ -738,6 +743,7 @@ const createReceipt = db.transaction(body => {
       item.debitAccount,
       item.creditAccount,
       item.unit,
+      item.color,
       item.quantity,
       item.unitPrice,
       item.amount
@@ -805,7 +811,7 @@ app.get('/api/inventory-receipts', (req, res) => {
       d.item_code AS itemCode, d.item_name AS itemName,
       d.ecus_item_code AS ecusItemCode, d.warehouse_code AS detailWarehouseCode,
       d.debit_account AS debitAccount, d.credit_account AS creditAccount,
-      d.unit, d.quantity, d.unit_price AS unitPrice
+      d.unit, d.color, d.quantity, d.unit_price AS unitPrice
     FROM inventory_receipts r
     LEFT JOIN inventory_receipt_details d ON d.receipt_id = r.id ${warehouseJoin}
     WHERE r.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility}
@@ -817,7 +823,7 @@ app.get('/api/inventory-receipts', (req, res) => {
       itemCode: detail.itemCode, itemName: detail.itemName,
       ecusItemCode: detail.ecusItemCode, warehouseCode: detail.detailWarehouseCode,
       debitAccount: detail.debitAccount, creditAccount: detail.creditAccount,
-      unit: detail.unit, quantity: detail.quantity, unitPrice: detail.unitPrice,
+      unit: detail.unit, color: detail.color, quantity: detail.quantity, unitPrice: detail.unitPrice,
     })),
   }))
   for (const receipt of receipts) {
@@ -828,6 +834,7 @@ app.get('/api/inventory-receipts', (req, res) => {
     delete receipt.debitAccount
     delete receipt.creditAccount
     delete receipt.unit
+    delete receipt.color
     delete receipt.quantity
     delete receipt.unitPrice
   }
@@ -855,6 +862,7 @@ const saveIssue = db.transaction(body => {
       debitAccount: cleanText(item.debitAccount) || null,
       creditAccount: cleanText(item.creditAccount) || null,
       unit: cleanText(item.unit) || null,
+      color: cleanText(item.color) || null,
       quantity,
       unitPrice,
       amount: quantity * unitPrice,
@@ -895,8 +903,8 @@ const saveIssue = db.transaction(body => {
     const result = db.prepare(`INSERT INTO inventory_issues(receiver_name,address,transporter_name,description,warehouse_code,customs_declaration_no,customs_declaration_date,contract_no,contract_date,invoice_no,invoice_date,voucher_no,voucher_date,original_voucher_no,original_voucher_date,exchange_rate,currency,issue_type,item_type,is_self_supplied,total_quantity,total_amount,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(...fields.slice(0, 11), voucherNo, ...fields.slice(11), 'New')
     issueId = Number(result.lastInsertRowid)
   }
-  const insert = db.prepare('INSERT INTO inventory_issue_details(issue_id,line_number,item_code,item_name,ecus_item_code,warehouse_code,debit_account,credit_account,unit,quantity,unit_price,amount) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
-  items.forEach((item, index) => insert.run(issueId,index+1,item.itemCode,item.itemName,item.ecusItemCode,item.warehouseCode,item.debitAccount,item.creditAccount,item.unit,item.quantity,item.unitPrice,item.amount))
+  const insert = db.prepare('INSERT INTO inventory_issue_details(issue_id,line_number,item_code,item_name,ecus_item_code,warehouse_code,debit_account,credit_account,unit,color,quantity,unit_price,amount) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+  items.forEach((item, index) => insert.run(issueId,index+1,item.itemCode,item.itemName,item.ecusItemCode,item.warehouseCode,item.debitAccount,item.creditAccount,item.unit,item.color,item.quantity,item.unitPrice,item.amount))
   return { id: issueId, voucherNo, totalQuantity, totalAmount }
 })
 
@@ -931,12 +939,12 @@ app.get('/api/inventory-issues', (req, res) => {
     ? ''
     : `AND ${warehouseMatch}`
   const warehouseVisibility = isAdmin ? '' : 'AND d.issue_id IS NOT NULL'
-  const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
+  const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.color,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
   const records = [...new Map(rows.map(row => [row.id,row])).values()].map(row => ({
     ...row,
-    items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,quantity:detail.quantity,unitPrice:detail.unitPrice })),
+    items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,color:detail.color,quantity:detail.quantity,unitPrice:detail.unitPrice })),
   }))
-  for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','quantity','unitPrice'].forEach(key => delete record[key])
+  for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','color','quantity','unitPrice'].forEach(key => delete record[key])
   res.json({ success:true,data:records })
 })
 
@@ -980,9 +988,18 @@ app.get('/api/inventory-report', (req, res) => {
       clauses.push("itemName LIKE ? ESCAPE '\\' COLLATE NOCASE")
       params.push(`%${String(filters.item).trim().replace(/[\\%_]/g, value => `\\${value}`)}%`)
     }
+    if (filters.customer) {
+      clauses.push("customerName LIKE ? ESCAPE '\\' COLLATE NOCASE")
+      params.push(`%${String(filters.customer).trim().replace(/[\\%_]/g, value => `\\${value}`)}%`)
+    }
+    if (filters.color) {
+      clauses.push("color LIKE ? ESCAPE '\\' COLLATE NOCASE")
+      params.push(`%${String(filters.color).trim().replace(/[\\%_]/g, value => `\\${value}`)}%`)
+    }
 
     const reportCategoryTypes = {
       'Nguyên liệu': ['Nguyên liệu'],
+      'Phụ liệu': ['Phụ liệu'],
       'Sản phẩm': ['Sản phẩm', 'Thành phẩm'],
       'Thiết bị': ['Thiết bị', 'Công cụ dụng cụ'],
       'Hàng mẫu': ['Hàng mẫu'],
@@ -1001,11 +1018,14 @@ app.get('/api/inventory-report', (req, res) => {
           COALESCE(NULLIF(r.warehouse_code, ''), '') AS headerWarehouseCode,
           COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, ''), '') AS warehouseCode,
           d.item_code AS itemCode, COALESCE(d.item_name, '') AS itemName,
+          COALESCE(d.color, '') AS color,
+          COALESCE(NULLIF(dp.name, ''), NULLIF(r.deliverer_name, ''), '') AS customerName,
           COALESCE(d.unit, '') AS unit, d.quantity AS quantity,
           COALESCE(d.amount, d.quantity * d.unit_price, 0) AS amount,
           COALESCE(r.item_type, '') AS itemType, d.line_number AS lineNumber
         FROM inventory_receipts r
         JOIN inventory_receipt_details d ON d.receipt_id = r.id
+        LEFT JOIN delivery_people dp ON dp.id = r.delivery_person_id
         UNION ALL
         SELECT 'out' AS movementType, i.voucher_no AS voucherNo,
           i.voucher_date AS movementDate, i.contract_no AS contractNo,
@@ -1013,6 +1033,8 @@ app.get('/api/inventory-report', (req, res) => {
           COALESCE(NULLIF(i.warehouse_code, ''), '') AS headerWarehouseCode,
           COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(i.warehouse_code, ''), '') AS warehouseCode,
           d.item_code AS itemCode, COALESCE(d.item_name, '') AS itemName,
+          COALESCE(d.color, '') AS color,
+          COALESCE(i.receiver_name, '') AS customerName,
           COALESCE(d.unit, '') AS unit, d.quantity AS quantity,
           COALESCE(d.amount, d.quantity * d.unit_price, 0) AS amount,
           COALESCE(i.item_type, '') AS itemType, d.line_number AS lineNumber

@@ -157,6 +157,7 @@ const excelColumnAliases = {
   debitAccount: ['tkno', 'taikhoanno', 'debitaccount'],
   creditAccount: ['tkco', 'taikhoanco', 'creditaccount'],
   unit: ['donvitinh', 'dvt', 'unit'],
+  color: ['mau', 'mausac', 'color', 'colour'],
   quantity: ['soluong', 'sl', 'quantity', 'qty'],
   unitPrice: ['dongia', 'unitprice', 'price'],
   amount: ['thanhtien', 'thanhtienhang', 'amount', 'total'],
@@ -229,6 +230,7 @@ function importExcelRows(matrix) {
           debitAccount: get('debitAccount'),
           creditAccount: get('creditAccount'),
           unit: get('unit'),
+          color: get('color'),
           quantity: get('quantity'),
           unitPrice: get('unitPrice'),
         }
@@ -248,17 +250,22 @@ function importExcelRows(matrix) {
         'Không nhận diện được cột Mã SP. File cần có tiêu đề hoặc theo thứ tự cột của danh sách hàng.'
       )
     imported = nonEmptyRows
-      .map(source => ({
-        itemCode: String(source[start] ?? '').trim(),
-        itemName: String(source[start + 1] ?? '').trim(),
-        ecusItemCode: String(source[start + 2] ?? '').trim(),
-        warehouseCode: String(source[start + 3] ?? '').trim(),
-        debitAccount: String(source[start + 4] ?? '').trim(),
-        creditAccount: String(source[start + 5] ?? '').trim(),
-        unit: String(source[start + 6] ?? '').trim(),
-        quantity: String(source[start + 7] ?? '').trim(),
-        unitPrice: String(source[start + 8] ?? '').trim(),
-      }))
+      .map(source => {
+        const hasColorColumn = source.length - start >= 10
+        const isIssue = documentType() === 'out'
+        return {
+          itemCode: String(source[start] ?? '').trim(),
+          itemName: String(source[start + 1] ?? '').trim(),
+          color: hasColorColumn ? String(source[start + 2] ?? '').trim() : '',
+          ecusItemCode: String(source[start + (hasColorColumn ? 3 : 2)] ?? '').trim(),
+          warehouseCode: String(source[start + (hasColorColumn ? 4 : 3)] ?? '').trim(),
+          debitAccount: String(source[start + (hasColorColumn ? (isIssue ? 6 : 5) : (isIssue ? 5 : 4))] ?? '').trim(),
+          creditAccount: String(source[start + (hasColorColumn ? (isIssue ? 7 : 6) : (isIssue ? 6 : 5))] ?? '').trim(),
+          unit: String(source[start + (hasColorColumn ? (isIssue ? 5 : 7) : (isIssue ? 4 : 6))] ?? '').trim(),
+          quantity: String(source[start + (hasColorColumn ? 8 : 7)] ?? '').trim(),
+          unitPrice: String(source[start + (hasColorColumn ? 9 : 8)] ?? '').trim(),
+        }
+      })
       .filter(item => Object.values(item).some(value => value !== ''))
   }
 
@@ -270,7 +277,7 @@ function importExcelRows(matrix) {
     )
 
   const template = tableBody.querySelector('.item-row')
-  const warehouseColumn = 5
+  const warehouseColumn = 6
   const hasExistingItems = rows().some(row =>
     [...row.querySelectorAll('[contenteditable="true"]')].some(cell =>
       cell.textContent.trim()
@@ -280,13 +287,14 @@ function importExcelRows(matrix) {
   for (const item of imported) {
     const row = template.cloneNode(true)
     const isIssue = documentType() === 'out'
-    const warehouseColumn = 5
+    const warehouseColumn = 6
     const values = isIssue
       ? [
           '',
           '',
           item.itemCode,
           item.itemName,
+          item.color,
           item.ecusItemCode,
           item.warehouseCode,
           item.unit,
@@ -301,6 +309,7 @@ function importExcelRows(matrix) {
           '',
           item.itemCode,
           item.itemName,
+          item.color,
           item.ecusItemCode,
           item.warehouseCode,
           item.debitAccount,
@@ -385,16 +394,23 @@ document.querySelectorAll('.tab').forEach(tab =>
 const pagePresets = {
   in: {
     title: 'Phiếu nhập kho kế toán (Gia công)',
-    receiver: 'Nhà cung cấp:',
+    receiver: 'Khách hàng:',
     code: '',
     voucherAction: '⟳ Tạo phiếu nhập kho gộp...',
     voucherType: ['Thành phẩm sản xuất', 'Nhập mua hàng', 'Nhập khác'],
-    goodsType: ['Nguyên liệu', 'Thành phẩm', 'Sản phẩm', 'Công cụ dụng cụ'],
+    goodsType: [
+      'Nguyên liệu',
+      'Phụ liệu',
+      'Thành phẩm',
+      'Sản phẩm',
+      'Công cụ dụng cụ',
+    ],
     headers: [
       '▧',
       'STT',
       'Mã SP',
       'Tên hàng',
+      'Màu',
       'Mã hàng ECUS',
       'Kho',
       'TK Nợ',
@@ -411,12 +427,13 @@ const pagePresets = {
     code: '',
     voucherAction: '⟳ Tạo phiếu xuất kho gộp...',
     voucherType: ['Sản xuất', 'Xuất bán', 'Xuất khác'],
-    goodsType: ['Sản phẩm', 'Nguyên liệu', 'Công cụ dụng cụ'],
+    goodsType: ['Sản phẩm', 'Nguyên liệu', 'Phụ liệu', 'Công cụ dụng cụ'],
     headers: [
       '▧',
       'STT',
       'Mã SP',
       'Tên hàng',
+      'Màu',
       'Mã hàng ECUS',
       'Kho',
       'Đơn vị tính',
@@ -529,12 +546,12 @@ function changePage(page) {
   }
   const config = pagePresets[page]
   if (previousType && previousType !== page) {
-    // Receipt rows store warehouse/debit/credit/unit at columns 5–8;
-    // issue rows display warehouse/unit/debit/credit in those columns.
+    // Both types keep color in column 4 and warehouse in column 6;
+    // unit and account columns change order between receipt and issue.
     const columnOrder =
-      page === 'out' ? [5, 8, 6, 7] : [5, 7, 8, 6]
+      page === 'out' ? [6, 9, 7, 8] : [6, 8, 9, 7]
     rows().forEach(row => {
-      const endMarker = row.cells[9]
+      const endMarker = row.cells[10]
       const reorderedCells = columnOrder.map(index => row.cells[index])
       reorderedCells.forEach(cell => row.insertBefore(cell, endMarker))
     })
@@ -543,8 +560,17 @@ function changePage(page) {
   document.querySelector('.titlebar strong').textContent = config.title
   document.querySelector('.general-box .form-row span').innerHTML =
     `${config.receiver} <b>*</b>`
-  document.querySelector('#senderPicker option[value=""]').textContent =
-    page === 'out' ? 'Chọn người nhận hàng' : 'Chọn nhà cung cấp'
+  const senderPlaceholder =
+    page === 'out' ? 'Chọn người nhận hàng' : 'Chọn khách hàng'
+  document.querySelector('#senderName').placeholder = senderPlaceholder
+  document.querySelector('#senderName').setAttribute(
+    'aria-label',
+    page === 'out' ? 'Người nhận hàng' : 'Khách hàng'
+  )
+  const senderPicker = document.querySelector('#senderPicker')
+  senderPicker.setAttribute('aria-label', senderPlaceholder)
+  senderPicker.querySelector('option[value=""]').textContent =
+    senderPlaceholder
   const voucherInput = document.querySelector('.voucher')
   if (!currentSavedId) {
     voucherInput.value = ''
@@ -644,7 +670,7 @@ function refreshLinkedWarehouseCells(resetInvalid = false) {
   const stores = linkedStoresFor(
     document.querySelector('#warehousePicker').value
   )
-  const warehouseColumn = 5
+  const warehouseColumn = 6
   rows().forEach(row => {
     const cell = row.cells[warehouseColumn]
     if (!cell || cell.getAttribute('aria-readonly') === 'true') return
@@ -708,7 +734,10 @@ async function loadDeliveryPeople() {
       throw new Error(result.error || 'Không tải được danh sách nhà cung cấp.')
     deliveryPeople = result.data
     senderPicker.replaceChildren(
-      new Option('Chọn nhà cung cấp', ''),
+      new Option(
+        documentType() === 'out' ? 'Chọn người nhận hàng' : 'Chọn khách hàng',
+        ''
+      ),
       ...deliveryPeople.map(
         person => new Option(person.name, String(person.id))
       )
@@ -838,6 +867,7 @@ function addReportRow(tbody, values, className = '') {
     } else {
       cell.textContent = String(entry ?? '')
     }
+    if (cell.textContent.length > 10) cell.classList.add('long-report-cell')
     row.append(cell)
   }
   tbody.append(row)
@@ -849,12 +879,14 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
     const itemCode = String(movement.itemCode || '').trim()
     if (!itemCode) continue
     const warehouseCode = String(movement.warehouseCode || '').trim()
-    const productKey = `${warehouseCode.toLocaleUpperCase('vi')}\u0000${itemCode.toLocaleUpperCase('vi')}`
+    const color = String(movement.color || '').trim()
+    const productKey = `${warehouseCode.toLocaleUpperCase('vi')}\u0000${itemCode.toLocaleUpperCase('vi')}\u0000${color.toLocaleUpperCase('vi')}`
     if (!products.has(productKey)) {
       products.set(productKey, {
         warehouseCode,
         itemCode,
         itemName: movement.itemName || '',
+        color,
         unit: movement.unit || '',
         openingQty: 0,
         openingAmount: 0,
@@ -867,9 +899,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
     }
     const product = products.get(productKey)
     if (!product.itemName && movement.itemName) product.itemName = movement.itemName
-    // const product = products.get(itemCode)
-    // if (!product.itemName && movement.itemName)
-      product.itemName = movement.itemName
+    if (!product.color && color) product.color = color
     if (!product.unit && movement.unit) product.unit = movement.unit
     const quantity = Number(movement.quantity) || 0
     const amount = Number(movement.amount) || 0
@@ -892,7 +922,8 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
 
   const productRows = [...products.values()].sort((left, right) =>
     left.warehouseCode.localeCompare(right.warehouseCode, 'vi', { numeric: true }) ||
-    left.itemCode.localeCompare(right.itemCode, 'vi', { numeric: true })
+    left.itemCode.localeCompare(right.itemCode, 'vi', { numeric: true }) ||
+    left.color.localeCompare(right.color, 'vi', { numeric: true })
   )
   const summaryBody = document.querySelector(
     '#reportResults .inventory-table .inventory-ledger tbody'
@@ -904,7 +935,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   detailBody.replaceChildren()
 
   if (!productRows.length) {
-    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 17 }])
+    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 18 }])
     addReportRow(detailBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 10 }])
     return
   }
@@ -949,6 +980,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
       product.warehouseCode,
       product.itemCode,
       product.itemName,
+      product.color,
       product.unit,
       reportNumber(product.openingQty),
       reportNumber(
@@ -972,7 +1004,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
 
     addReportRow(
       detailBody,
-      [{ value: `Mã kho: ${product.warehouseCode || '(chưa có kho)'}　Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}`, colSpan: 10 }],
+      [{ value: `Mã kho: ${product.warehouseCode || '(chưa có kho)'}　Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}　Màu: ${product.color || ''}`, colSpan: 10 }],
       'product-row'
     )
     addReportRow(
@@ -1025,7 +1057,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   addReportRow(
     summaryBody,
     [
-      { value: 'Cộng', colSpan: 5 },
+      { value: 'Cộng', colSpan: 6 },
       reportNumber(totals.openingQty),
       '',
       reportNumber(totals.openingAmount),
@@ -1056,7 +1088,8 @@ async function showInventoryReport(detail = false) {
   const requestWarehouse =
     currentUser?.role === 'warehouse' ? warehouse : ''
   const contract = form.get('contract')
-  const item = form.get('item')?.trim() || ''
+  const customer = form.get('customer')?.trim() || ''
+  const color = form.get('color')?.trim() || ''
   const productCode = form.get('productCode')?.trim() || ''
   const query = new URLSearchParams({
     fromDate: from || '',
@@ -1064,7 +1097,8 @@ async function showInventoryReport(detail = false) {
     warehouse: requestWarehouse || '',
     productCode,
     contract: contract || '',
-    item,
+    customer,
+    color,
     category: category || '',
   })
   const actionButton = document.querySelector(
@@ -1113,7 +1147,7 @@ async function showInventoryReport(detail = false) {
   document.querySelector('#paperWarehouseCode').textContent = warehouse || 'Tất cả kho'
   document.querySelector('#paperContract').textContent = contract || 'Tất cả hợp đồng'
   document.querySelector('#paperFormCode').textContent =
-    `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${category}${item ? ` · ${item}` : ''}${productCode ? ` · Mã SP: ${productCode}` : ''}`
+    `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${category}${customer ? ` · Khách hàng: ${customer}` : ''}${productCode ? ` · Mã SP: ${productCode}` : ''}${color ? ` · Màu: ${color}` : ''}`
   document.querySelector('.paper-title').textContent = detail
     ? 'THẺ KHO CHI TIẾT'
     : 'BÁO CÁO NHẬP XUẤT TỒN'
@@ -1251,13 +1285,14 @@ function collectReceiptItems() {
     .map(row => ({
       itemCode: cellValue(row, 2),
       itemName: cellValue(row, 3),
-      ecusItemCode: cellValue(row, 4),
-      warehouseCode: cellValue(row, 5),
-      debitAccount: cellValue(row, 6),
-      creditAccount: cellValue(row, 7),
-      unit: cellValue(row, 8),
-      quantity: parseTableNumber(cellValue(row, 9)),
-      unitPrice: parseTableNumber(cellValue(row, 10)),
+      color: cellValue(row, 4),
+      ecusItemCode: cellValue(row, 5),
+      warehouseCode: cellValue(row, 6),
+      debitAccount: cellValue(row, 7),
+      creditAccount: cellValue(row, 8),
+      unit: cellValue(row, 9),
+      quantity: parseTableNumber(cellValue(row, 10)),
+      unitPrice: parseTableNumber(cellValue(row, 11)),
     }))
     .filter(item =>
       Object.values(item).some(value => value !== '' && value !== 0)
@@ -1269,13 +1304,14 @@ function collectIssueItems() {
     .map(row => ({
       itemCode: cellValue(row, 2),
       itemName: cellValue(row, 3),
-      ecusItemCode: cellValue(row, 4),
-      warehouseCode: cellValue(row, 5),
-      unit: cellValue(row, 6),
-      debitAccount: cellValue(row, 7),
-      creditAccount: cellValue(row, 8),
-      quantity: parseTableNumber(cellValue(row, 9)),
-      unitPrice: parseTableNumber(cellValue(row, 10)),
+      color: cellValue(row, 4),
+      ecusItemCode: cellValue(row, 5),
+      warehouseCode: cellValue(row, 6),
+      unit: cellValue(row, 7),
+      debitAccount: cellValue(row, 8),
+      creditAccount: cellValue(row, 9),
+      quantity: parseTableNumber(cellValue(row, 10)),
+      unitPrice: parseTableNumber(cellValue(row, 11)),
     }))
     .filter(item =>
       Object.values(item).some(value => value !== '' && value !== 0)
@@ -1424,6 +1460,7 @@ function captureVoucher(status = 'Đã ghi') {
     number: documentNumber(),
     status,
     savedAt: new Date().toISOString(),
+    columnLayout: 'color-after-item-name',
     fields: fieldControls().map(control => ({
       value: control.value,
       checked: control.type === 'checkbox' ? control.checked : undefined,
@@ -1431,6 +1468,15 @@ function captureVoucher(status = 'Đã ghi') {
     rows: rows().map(row => [...row.cells].map(cell => cell.textContent)),
     activeTab: document.querySelector('.tab.active')?.dataset.tab || 'general',
   }
+}
+
+function normalizeStoredRow(values, type, columnLayout) {
+  if (columnLayout === 'color-after-item-name') return values
+  if (values.length === 12)
+    return [...values.slice(0, 4), '', ...values.slice(4)]
+  if (values.length >= 13)
+    return [...values.slice(0, 4), values[9], ...values.slice(4, 9), ...values.slice(10)]
+  return values
 }
 
 function saveVoucher(status = 'Đã ghi') {
@@ -1543,8 +1589,15 @@ async function createVoucher(copyCurrent) {
     copiedRecord.rows.forEach((values, index) => {
       if (index > 0) copyRow()
       const row = rows()[index]
-      values.forEach((value, cellIndex) => {
-        if (row.cells[cellIndex]) row.cells[cellIndex].textContent = value
+      const compatibleValues = normalizeStoredRow(
+        values,
+        copiedRecord.type,
+        copiedRecord.columnLayout
+      )
+      compatibleValues.forEach((value, cellIndex) => {
+        if (!row.cells[cellIndex]) return
+        if (cellIndex === 6) configureLinkedWarehouseCell(row.cells[cellIndex], value)
+        else row.cells[cellIndex].textContent = value
       })
     })
   }
@@ -1571,7 +1624,13 @@ function loadVoucher(record) {
   ;(record.rows || []).forEach(values => {
     const row = document.createElement('tr')
     row.className = 'item-row'
-    values.forEach((value, index) => {
+    const compatibleValues = normalizeStoredRow(
+      values,
+      record.type,
+      record.columnLayout
+    )
+    const warehouseColumn = 6
+    compatibleValues.forEach((value, index) => {
       const cell = document.createElement('td')
       if (index === warehouseColumn) configureLinkedWarehouseCell(cell, value)
       else {
@@ -1579,15 +1638,15 @@ function loadVoucher(record) {
       }
       if (
         index >= 2 &&
-        index <= 10 &&
-        index !== 11 &&
+        index <= 11 &&
+        index !== 12 &&
         index !== warehouseColumn
       )
         cell.contentEditable = 'true'
       if (index === 0) cell.className = 'row-marker'
-      if (index === 9) cell.className = 'quantity'
-      if (index === 10) cell.className = 'price'
-      if (index === 11) cell.className = 'amount'
+      if (index === 10) cell.className = 'quantity'
+      if (index === 11) cell.className = 'price'
+      if (index === 12) cell.className = 'amount'
       row.append(cell)
     })
     tableBody.append(row)
@@ -1636,12 +1695,13 @@ function loadReceiptVoucher(record) {
   tableBody.replaceChildren()
   for (const item of record.items || []) {
     const row = template.cloneNode(true)
-    const warehouseColumn = 5
+    const warehouseColumn = 6
     const values = [
       '',
       '',
       item.itemCode,
       item.itemName,
+      item.color || '',
       item.ecusItemCode,
       item.warehouseCode,
       item.debitAccount,
@@ -1815,12 +1875,13 @@ function loadIssueVoucher(record) {
   tableBody.replaceChildren()
   ;(record.items || []).forEach(item => {
     const row = template.cloneNode(true)
-    const warehouseColumn = 5
+    const warehouseColumn = 6
     const values = [
       '',
       '',
       item.itemCode,
       item.itemName,
+      item.color || '',
       item.ecusItemCode,
       item.warehouseCode,
       item.unit,
@@ -2136,7 +2197,7 @@ function applyWarehouseRestrictions() {
   document.querySelector('#warehouseName').value =
     warehouseNames[picker.value] || headerSite?.siteCode || picker.value
   refreshLinkedWarehouseCells(true)
-  const warehouseColumn = 5
+  const warehouseColumn = 6
   rows().forEach(row => {
     const cell = row.children[warehouseColumn]
     if (!cell) return

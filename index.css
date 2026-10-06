@@ -1165,7 +1165,7 @@ th:nth-child(9) {
   .inventory-table .inventory-ledger {
     width: 100%;
     min-width: 0;
-    table-layout: auto;
+    table-layout: fixed;
     font-size: 8.5pt;
   }
   .inventory-table .inventory-ledger th,
@@ -1178,6 +1178,28 @@ th:nth-child(9) {
     white-space: normal;
     overflow: visible;
     overflow-wrap: anywhere;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(1) {
+    width: 40px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(2) {
+    width: 90px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(3) {
+    width: 110px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(4) {
+    width: 100px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(5) {
+    width: 65px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(6) {
+    width: 65px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(5),
+  .inventory-table .inventory-ledger tbody td:nth-child(5) {
+    text-align: center !important;
   }
   .inventory-table .inventory-ledger td:nth-child(n + 5) {
     white-space: nowrap;
@@ -1736,6 +1758,20 @@ th:nth-child(9) {
 }
 .stock-ledger th:nth-child(10) {
   width: 98px;
+}
+.stock-ledger.inventory-ledger th:nth-child(5),
+.stock-ledger.inventory-ledger td:nth-child(5) {
+  width: 65px !important;
+  min-width: 65px !important;
+  max-width: 65px !important;
+  text-align: center !important;
+}
+.inventory-ledger td.long-report-cell {
+  white-space: normal !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: middle;
 }
 .stock-ledger thead tr:first-child th {
   height: 31px;

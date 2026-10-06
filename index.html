@@ -40,17 +40,17 @@
             <fieldset class="general-box">
               <legend>Thông tin chung</legend>
               <label class="form-row"
-                ><span>Nhà cung cấp: <b>*</b></span>
+                ><span>Khách hàng: <b>*</b></span>
                 <div class="input-group short">
                   <input
                     id="senderName"
-                    aria-label="Nhà cung cấp"
-                    placeholder="Chọn nhà cung cấp"
+                    aria-label="Khách hàng"
+                    placeholder="Chọn khách hàng"
                     readonly /><select
                     id="senderPicker"
                     class="sender-picker"
-                    aria-label="Chọn nhà cung cấp">
-                    <option value="">Chọn nhà cung cấp</option></select
+                    aria-label="Chọn khách hàng">
+                    <option value="">Chọn khách hàng</option></select
                   ><button
                     type="button"
                     class="add-delivery-person"
@@ -196,6 +196,7 @@
               <div class="input-group">
                 <select id="goodsType">
                   <option>Nguyên liệu</option>
+                  <option>Phụ liệu</option>
                   <option>Thành phẩm</option>
                   <option>Sản phẩm</option>
                   <option>Công cụ dụng cụ</option>
@@ -390,6 +391,7 @@
                   <th>STT</th>
                   <th>Mã SP</th>
                   <th>Tên hàng</th>
+                  <th>Màu</th>
                   <th>Mã hàng ECUS</th>
                   <th>Kho</th>
                   <th>TK Nợ</th>
@@ -406,6 +408,7 @@
                   <td></td>
                   <td contenteditable="true"></td>
                   <td contenteditable="true"></td>
+                  <td contenteditable="true" class="color"></td>
                   <td contenteditable="true"></td>
                   <td contenteditable="true"></td>
                   <td contenteditable="true"></td>
@@ -454,6 +457,12 @@
                 ><input
                   type="radio"
                   name="goodsCategory"
+                  value="Phụ liệu" />Phụ liệu</label
+              >
+              <label
+                ><input
+                  type="radio"
+                  name="goodsCategory"
                   value="Sản phẩm"
                   checked />Sản phẩm</label
               >
@@ -495,7 +504,10 @@
                 </select></label
               >
               <label class="report-field"
-                ><span>Hàng hóa</span><input type="text" name="item"
+                ><span>Khách hàng</span><input type="text" name="customer"
+              /></label>
+              <label class="report-field"
+                ><span>Màu</span><input type="text" name="color" placeholder="Nhập màu"
               /></label>
               <label class="report-field"
                 ><span>Mã SP</span
@@ -623,6 +635,7 @@
                     <th rowspan="2">Mã kho</th>
                     <th rowspan="2">Mã hàng</th>
                     <th rowspan="2">Tên hàng</th>
+                    <th rowspan="2">Màu</th>
                     <th rowspan="2">ĐVT</th>
                     <th colspan="3">Tồn đầu kỳ</th>
                     <th colspan="3">Nhập trong kỳ</th>
@@ -649,6 +662,7 @@
                     <td>1</td>
                     <td>SP-KH00001</td>
                     <td>Sản phẩm chi tiết theo kho</td>
+                    <td></td>
                     <td>Cái</td>
                     <td>500</td>
                     <td>25.000</td>
@@ -667,6 +681,7 @@
                     <td>2</td>
                     <td>SP-KH00002</td>
                     <td>Sản phẩm chi tiết theo kho 02</td>
+                    <td></td>
                     <td>Cái</td>
                     <td>1.000</td>
                     <td>18.000</td>
@@ -718,7 +733,7 @@
                     <td>1.349.100.000</td>
                   </tr>
                   <tr class="subtotal-row">
-                    <td colspan="4">Cộng</td>
+                    <td colspan="5">Cộng</td>
                     <td>2.144</td>
                     <td></td>
                     <td>38.228.000</td>
@@ -1093,6 +1108,7 @@
         <fieldset class="report-filter"><legend>Loại hàng hóa</legend><div class="radio-options">
           <label><input type="radio" name="goodsCategory" value="Xuất tất cả">Xuất tất cả</label>
           <label><input type="radio" name="goodsCategory" value="Nguyên liệu">Nguyên liệu</label>
+          <label><input type="radio" name="goodsCategory" value="Phụ liệu">Phụ liệu</label>
           <label><input type="radio" name="goodsCategory" value="Sản phẩm" checked>Sản phẩm</label>
           <label><input type="radio" name="goodsCategory" value="Thiết bị">Thiết bị</label>
           <label><input type="radio" name="goodsCategory" value="Hàng mẫu">Hàng mẫu</label>
@@ -1101,7 +1117,8 @@
           <label class="report-field"><span>Từ ngày</span><input type="date" name="fromDate"></label>
           <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate"></label>
           <label class="report-field"><span>Mã kho</span><select name="warehouse"><option value="">Chọn kho</option><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></label>
-          <label class="report-field"><span>Hàng hóa</span><input type="text" name="item"></label>
+          <label class="report-field"><span>Khách hàng</span><input type="text" name="customer"></label>
+          <label class="report-field"><span>Màu</span><input type="text" name="color" placeholder="Nhập màu"></label>
           <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
           <label class="report-field"><span>Hợp đồng</span><input type="text" name="contract" placeholder="Nhập hợp đồng"></label>
         </div></fieldset>
@@ -1124,7 +1141,7 @@
           <p class="paper-warehouse"><strong>Mã kho:</strong> <span id="paperWarehouseCode">KHO-TP</span><span class="warehouse-name"><strong>Tên kho:</strong> <span id="paperWarehouseName">Kho thành phẩm</span></span><span class="warehouse-name"><strong>Hợp đồng:</strong> <span id="paperContract">HD01/2019-TSD</span></span></p>
           <div class="paper-table-wrap inventory-table"><table class="stock-ledger inventory-ledger" aria-label="Báo cáo tổng hợp nhập xuất tồn">
             <thead>
-              <tr><th rowspan="2">STT</th><th rowspan="2">Mã kho</th><th rowspan="2">Mã hàng</th><th rowspan="2">Tên hàng</th><th rowspan="2">ĐVT</th><th colspan="3">Tồn đầu kỳ</th><th colspan="3">Nhập trong kỳ</th><th colspan="3">Xuất trong kỳ</th><th colspan="3">Tồn cuối kỳ</th></tr>
+              <tr><th rowspan="2">STT</th><th rowspan="2">Mã kho</th><th rowspan="2">Mã hàng</th><th rowspan="2">Tên hàng</th><th rowspan="2">Màu</th><th rowspan="2">ĐVT</th><th colspan="3">Tồn đầu kỳ</th><th colspan="3">Nhập trong kỳ</th><th colspan="3">Xuất trong kỳ</th><th colspan="3">Tồn cuối kỳ</th></tr>
               <tr><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr>
             </thead>
             <tbody>
@@ -1132,7 +1149,7 @@
               <tr><td>2</td><td>SP-KH00002</td><td>Sản phẩm chi tiết theo kho 02</td><td>Cái</td><td>1.000</td><td>18.000</td><td>18.000.000</td><td>15.490</td><td>18.000</td><td>278.820.000</td><td>1.000</td><td>18.000</td><td>18.000.000</td><td>15.490</td><td>18.000</td><td>278.820.000</td></tr>
               <tr><td>3</td><td>SP-KH00003</td><td>Sản phẩm chi tiết theo kho 03</td><td>Cái</td><td>644</td><td>12.000</td><td>7.728.000</td><td>6.640</td><td>12.000</td><td>79.680.000</td><td>644</td><td>12.000</td><td>7.728.000</td><td>6.640</td><td>12.000</td><td>79.680.000</td></tr>
               <tr><td>4</td><td>SP-KH00004</td><td>Sản phẩm chi tiết theo kho 04</td><td>Cái</td><td>0</td><td>30.000</td><td>0</td><td>44.970</td><td>30.000</td><td>1.349.100.000</td><td>0</td><td>30.000</td><td>0</td><td>44.970</td><td>30.000</td><td>1.349.100.000</td></tr>
-              <tr class="subtotal-row"><td colspan="4">Cộng</td><td>2.144</td><td></td><td>38.228.000</td><td>68.700</td><td></td><td>1.747.600.000</td><td>1.884</td><td></td><td>31.728.000</td><td>68.960</td><td></td><td>1.754.100.000</td></tr>
+              <tr class="subtotal-row"><td colspan="5">Cộng</td><td>2.144</td><td></td><td>38.228.000</td><td>68.700</td><td></td><td>1.747.600.000</td><td>1.884</td><td></td><td>31.728.000</td><td>68.960</td><td></td><td>1.754.100.000</td></tr>
             </tbody>
           </table></div>
           <div class="paper-table-wrap"><table class="stock-ledger" aria-label="Bảng thẻ kho chi tiết"><thead>
