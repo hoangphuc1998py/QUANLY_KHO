@@ -1252,22 +1252,48 @@ document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
       () => `${parent} - ${subheaders[subheaderIndex++].innerText.trim()}`
     )
   })
-  const quote = value =>
-    `"${String(value).replaceAll('"', '""').replaceAll('\n', ' ').trim()}"`
-  const rows = [headers.map(quote).join(',')]
+  const rows = [headers]
   ;[...table.tBodies[0].rows].forEach(row => {
     const values = [...row.cells].flatMap(cell => [
       cell.innerText.trim(),
       ...Array(Math.max(0, cell.colSpan - 1)).fill(''),
     ])
-    rows.push(values.map(quote).join(','))
+    rows.push(values)
   })
-  const csv = `\uFEFF${rows.join('\r\n')}`
+  const columnCount = Math.max(...rows.map(row => row.length))
+  const columnWidths = Array.from({ length: columnCount }, (_, columnIndex) =>
+    Math.max(
+      8,
+      ...rows.map(row => String(row[columnIndex] ?? '').length + 2)
+    )
+  )
+  const escapeHtml = value =>
+    String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+  const renderRow = (values, tag) =>
+    `<tr>${Array.from({ length: columnCount }, (_, index) =>
+      `<${tag}>${escapeHtml(values[index] ?? '')}</${tag}>`
+    ).join('')}</tr>`
+  const excelHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
+    table{border-collapse:collapse;table-layout:auto;mso-width-source:auto}
+    th,td{border:1px solid #777;text-align:center;vertical-align:middle;white-space:nowrap;padding:4px 6px;mso-number-format:"\\@"}
+    th{font-weight:bold;background:#eaf0f8}
+  </style></head><body><table><colgroup>${columnWidths
+    .map(width => `<col style="width:${width}ch;mso-width-alt:${width * 256}">`)
+    .join('')}</colgroup><thead>${renderRow(rows[0], 'th')}</thead><tbody>${rows
+    .slice(1)
+    .map(row => renderRow(row, 'td'))
+    .join('')}</tbody></table></body></html>`
   const link = document.createElement('a')
   link.href = URL.createObjectURL(
-    new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    new Blob([`\uFEFF${excelHtml}`], {
+      type: 'application/vnd.ms-excel;charset=utf-8',
+    })
   )
-  link.download = 'bao-cao-tong-hop-ton-kho.csv'
+  link.download = 'bao-cao-nhap-xuat-ton.xls'
   link.click()
   setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 })
