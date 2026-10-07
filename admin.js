@@ -11,9 +11,9 @@ const lampPull = document.querySelector('#lampPull')
 const pullHint = document.querySelector('#pullHint')
 let setupRequired = false
 const authApiBase =
-  window.location.port === '8080'
+  window.location.port === '8888'
     ? ''
-    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8080`
+    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8888`
 
 async function initializeLogin() {
   try {

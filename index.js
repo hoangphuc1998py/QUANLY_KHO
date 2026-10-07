@@ -6,9 +6,9 @@ let isVoucherDirty = false
 // The UI may be opened from a preview server or directly from the HTML file.
 // In both cases, keep API requests pointed at the Express server.
 const apiBaseUrl =
-  window.location.port === '8080'
+  window.location.port === '8888'
     ? ''
-    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8080`
+    : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8888`
 
 function apiUrl(path) {
   return `${apiBaseUrl}${path}`
@@ -25,7 +25,7 @@ async function readApiJson(response, action) {
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.toLowerCase().includes('application/json')) {
     throw new Error(
-      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). Máy chủ ở cổng 8080 đang chạy phiên bản cũ; hãy khởi động lại bằng npm start.`
+      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). Hãy khởi động lại máy chủ bằng npm start.`
     )
   }
   try {
@@ -1273,10 +1273,10 @@ document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
   })
   const columnCount = Math.max(...rows.map(row => row.length))
   const columnWidths = Array.from({ length: columnCount }, (_, columnIndex) =>
-    Math.min(40, Math.max(
-      10,
+    Math.max(
+      8,
       ...rows.map(row => String(row[columnIndex] ?? '').length + 2)
-    ))
+    )
   )
   const escapeHtml = value =>
     String(value ?? '')
@@ -1289,14 +1289,11 @@ document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
       `<${tag}>${escapeHtml(values[index] ?? '')}</${tag}>`
     ).join('')}</tr>`
   const excelHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
-    table{border-collapse:collapse;table-layout:fixed;mso-width-source:userset}
-    th,td{border:1px solid #777;text-align:center;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:4px 6px;mso-number-format:"\\@"}
+    table{border-collapse:collapse;table-layout:auto;mso-width-source:auto}
+    th,td{border:1px solid #777;text-align:center;vertical-align:middle;white-space:nowrap;padding:4px 6px;mso-number-format:"\\@"}
     th{font-weight:bold;background:#eaf0f8}
   </style></head><body><table><colgroup>${columnWidths
-    .map(width => {
-      const pixels = width * 8 + 12
-      return `<col width="${pixels}" style="width:${pixels}px;mso-width-source:userset;mso-width-alt:${width * 256}">`
-    })
+    .map(width => `<col style="width:${width}ch;mso-width-alt:${width * 256}">`)
     .join('')}</colgroup><thead>${renderRow(rows[0], 'th')}</thead><tbody>${rows
     .slice(1)
     .map(row => renderRow(row, 'td'))
