@@ -198,7 +198,7 @@
                   <option>Nguyên liệu</option>
                   <option>Phụ liệu</option>
                   <option>Thành phẩm</option>
-                  <option>Sản phẩm</option>
+                  <option value="Sản phẩm">Sản phẩm mẫu</option>
                   <option>Công cụ dụng cụ</option>
                 </select>
               </div></label
@@ -427,6 +427,47 @@
           ><span>Tổng tiền hàng:</span><strong id="totalAmount">0</strong>
         </footer>
       </section>
+      <section id="voucherPrintPage" class="voucher-print-page" aria-label="Bản in phiếu kho">
+        <header class="voucher-print-header">
+          <div><strong>Đơn vị: CÔNG TY CỔ PHẦN AN HÙNG</strong><br><strong>Bộ phận: P.TCNS</strong></div>
+          <div class="voucher-print-form-code"><strong>Mẫu số 01 – VT</strong><br>(Ban hành theo TT số: 200/2014/TT-BTC)<br>ngày 22/12/2014 của Bộ trưởng BTC</div>
+        </header>
+        <h1 id="voucherPrintTitle">PHIẾU NHẬP KHO</h1>
+        <div class="voucher-print-meta">
+          <div id="voucherPrintDate"></div>
+          <div><strong>Nợ:</strong> <span id="voucherPrintDebit"></span></div>
+          <div><strong>Số:</strong> <span id="voucherPrintNumber"></span></div>
+          <div><strong>Có:</strong> <span id="voucherPrintCredit"></span></div>
+        </div>
+        <div class="voucher-print-info">
+          <p><strong>Họ tên người giao/nhận hàng:</strong> <span id="voucherPrintPartner"></span></p>
+          <p><strong>Địa chỉ:</strong> <span id="voucherPrintAddress"></span></p>
+          <p><strong>Theo chứng từ:</strong> <span id="voucherPrintContract"></span></p>
+          <p><strong>Lý do:</strong> <span id="voucherPrintReason"></span></p>
+          <p><strong id="voucherPrintWarehouseLabel">Nhập tại kho:</strong> <span id="voucherPrintWarehouse"></span></p>
+          <p><strong>Người vận chuyển:</strong> <span id="voucherPrintTransporter"></span></p>
+          <p><strong>Tờ khai:</strong> <span id="voucherPrintCustoms"></span>　<strong>Hóa đơn:</strong> <span id="voucherPrintInvoice"></span></p>
+        </div>
+        <table class="voucher-print-table">
+          <thead>
+            <tr><th rowspan="2">STT</th><th rowspan="2">Tên nhãn hiệu, quy cách phẩm chất vật tư, dụng cụ, sản phẩm, hàng hóa</th><th rowspan="2">Mã số</th><th rowspan="2">Đơn vị tính</th><th colspan="2">Số lượng</th><th rowspan="2">Đơn giá (<span class="voucherPrintCurrency">VND</span>)</th><th rowspan="2">Thành tiền (<span class="voucherPrintCurrency">VND</span>)</th></tr>
+            <tr><th>Yêu cầu</th><th>Thực nhập</th></tr>
+            <tr class="voucher-print-letters"><th>A</th><th>B</th><th>C</th><th>D</th><th>1</th><th>2</th><th>3</th><th>4</th></tr>
+          </thead>
+          <tbody id="voucherPrintItems"></tbody>
+          <tfoot><tr><th colspan="7">Cộng tiền hàng</th><th id="voucherPrintTotal">0</th></tr></tfoot>
+        </table>
+        <p class="voucher-print-amount-words"><strong>Tổng số tiền (viết bằng chữ):</strong> <span id="voucherPrintAmountWords"></span></p>
+        <p class="voucher-print-signed-date" id="voucherPrintSignedDate"></p>
+        <footer class="voucher-print-signatures">
+          <div><strong>Người lập phiếu</strong><em>(Ký, họ tên)</em></div>
+          <div><strong>Người giao hàng</strong><em>(Ký, họ tên)</em></div>
+          <div><strong>Thủ kho</strong><em>(Ký, họ tên)</em></div>
+          <div><strong>Phụ trách bộ phận</strong><em>(Ký, họ tên)</em></div>
+          <div><strong>Kế toán trưởng</strong><em>(Ký, họ tên)</em></div>
+          <div><strong>Thủ trưởng đơn vị</strong><em>(Ký, họ tên)</em></div>
+        </footer>
+      </section>
       <section
         class="report-page hidden"
         id="stockReportPage"
@@ -464,7 +505,7 @@
                   type="radio"
                   name="goodsCategory"
                   value="Sản phẩm"
-                  checked />Sản phẩm</label
+                  checked />Sản phẩm mẫu</label
               >
               <label
                 ><input
@@ -1095,11 +1136,11 @@
       <div class="other-page hidden" id="otherPage"><fieldset><legend>Thông tin khác</legend><label class="form-row"><span>Nhân viên mua hàng:</span><input class="grow"></label><label class="form-row"><span>Đối tượng:</span><input class="grow"></label><label class="form-row"><span>Ghi chú:</span><input class="grow"></label></fieldset></div>
       <footer class="actions" aria-label="Chức năng chứng từ">
         <button class="soft" id="createVoucher">⟳ Tạo phiếu nhập kho gộp...</button>
-        <span class="spacer"></span><button id="copyVoucher">▤ Copy</button><button id="printVoucher">♟ In</button><button id="newVoucher">⊕ Thêm Mới</button>
+        <span class="spacer"></span><button id="copyVoucher">▤ Copy</button><button id="exportVoucherExcel">⇩ Export Excel</button><button id="newVoucher">⊕ Thêm Mới</button>
         <button id="importExcel" type="button">⇧ Import Excel</button>
         <input id="excelFileInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
         <button id="searchBtn">⌕ Tìm CT...</button><button id="saveVoucher">▣ Ghi</button>
-        <button id="deleteVoucher">× Xóa</button><button class="exit" id="exitBtn">⊠ Đóng</button>
+        <button class="exit" id="exitBtn">⊠ Đóng</button>
       </footer>
     </section>
     <section class="report-page hidden" id="stockReportPage" aria-labelledby="reportTitle">
@@ -1109,7 +1150,7 @@
           <label><input type="radio" name="goodsCategory" value="Xuất tất cả">Xuất tất cả</label>
           <label><input type="radio" name="goodsCategory" value="Nguyên liệu">Nguyên liệu</label>
           <label><input type="radio" name="goodsCategory" value="Phụ liệu">Phụ liệu</label>
-          <label><input type="radio" name="goodsCategory" value="Sản phẩm" checked>Sản phẩm</label>
+          <label><input type="radio" name="goodsCategory" value="Sản phẩm" checked>Sản phẩm mẫu</label>
           <label><input type="radio" name="goodsCategory" value="Thiết bị">Thiết bị</label>
           <label><input type="radio" name="goodsCategory" value="Hàng mẫu">Hàng mẫu</label>
         </div></fieldset>

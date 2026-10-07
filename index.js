@@ -278,12 +278,14 @@ function importExcelRows(matrix) {
 
   const template = tableBody.querySelector('.item-row')
   const warehouseColumn = 6
+  const rowHasItemData = row => [2, 3, 4, 5, 10, 11].some(index =>
+    row.cells[index]?.textContent.trim()
+  )
   const hasExistingItems = rows().some(row =>
-    [...row.querySelectorAll('[contenteditable="true"]')].some(cell =>
-      cell.textContent.trim()
-    )
+    rowHasItemData(row)
   )
   if (!hasExistingItems) tableBody.replaceChildren()
+  else rows().filter(row => !rowHasItemData(row)).forEach(row => row.remove())
   for (const item of imported) {
     const row = template.cloneNode(true)
     const isIssue = documentType() === 'out'
@@ -402,7 +404,7 @@ const pagePresets = {
       'Nguyên liệu',
       'Phụ liệu',
       'Thành phẩm',
-      'Sản phẩm',
+      { label: 'Sản phẩm mẫu', value: 'Sản phẩm' },
       'Công cụ dụng cụ',
     ],
     headers: [
@@ -427,7 +429,12 @@ const pagePresets = {
     code: '',
     voucherAction: '⟳ Tạo phiếu xuất kho gộp...',
     voucherType: ['Sản xuất', 'Xuất bán', 'Xuất khác'],
-    goodsType: ['Sản phẩm', 'Nguyên liệu', 'Phụ liệu', 'Công cụ dụng cụ'],
+    goodsType: [
+      { label: 'Sản phẩm mẫu', value: 'Sản phẩm' },
+      'Nguyên liệu',
+      'Phụ liệu',
+      'Công cụ dụng cụ',
+    ],
     headers: [
       '▧',
       'STT',
@@ -447,7 +454,11 @@ const pagePresets = {
 }
 
 function setOptions(select, labels, selected) {
-  select.replaceChildren(...labels.map(label => new Option(label, label)))
+  select.replaceChildren(...labels.map(option =>
+    typeof option === 'string'
+      ? new Option(option, option)
+      : new Option(option.label, option.value)
+  ))
   select.value = selected
 }
 
@@ -1262,10 +1273,10 @@ document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
   })
   const columnCount = Math.max(...rows.map(row => row.length))
   const columnWidths = Array.from({ length: columnCount }, (_, columnIndex) =>
-    Math.max(
-      8,
+    Math.min(40, Math.max(
+      10,
       ...rows.map(row => String(row[columnIndex] ?? '').length + 2)
-    )
+    ))
   )
   const escapeHtml = value =>
     String(value ?? '')
@@ -1278,11 +1289,14 @@ document.querySelector('#exportInventoryCsv').addEventListener('click', () => {
       `<${tag}>${escapeHtml(values[index] ?? '')}</${tag}>`
     ).join('')}</tr>`
   const excelHtml = `<!doctype html><html><head><meta charset="utf-8"><style>
-    table{border-collapse:collapse;table-layout:auto;mso-width-source:auto}
-    th,td{border:1px solid #777;text-align:center;vertical-align:middle;white-space:nowrap;padding:4px 6px;mso-number-format:"\\@"}
+    table{border-collapse:collapse;table-layout:fixed;mso-width-source:userset}
+    th,td{border:1px solid #777;text-align:center;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:4px 6px;mso-number-format:"\\@"}
     th{font-weight:bold;background:#eaf0f8}
   </style></head><body><table><colgroup>${columnWidths
-    .map(width => `<col style="width:${width}ch;mso-width-alt:${width * 256}">`)
+    .map(width => {
+      const pixels = width * 8 + 12
+      return `<col width="${pixels}" style="width:${pixels}px;mso-width-source:userset;mso-width-alt:${width * 256}">`
+    })
     .join('')}</colgroup><thead>${renderRow(rows[0], 'th')}</thead><tbody>${rows
     .slice(1)
     .map(row => renderRow(row, 'td'))
@@ -1433,13 +1447,227 @@ document
 document
   .querySelector('#newVoucher')
   .addEventListener('click', () => createVoucher(false))
-document.querySelector('#printVoucher').addEventListener('click', () => {
-  document.body.classList.add('printing-voucher')
-  window.print()
+function printVoucherDate(value, monthWords = false) {
+  if (!value) return ''
+  const [year, month, day] = String(value).slice(0, 10).split('-')
+  if (!year || !month || !day) return value
+  return monthWords
+    ? `Ngày ${Number(day)} tháng ${Number(month)} năm ${year}`
+    : `${day}/${month}/${year}`
+}
+
+function prepareVoucherPrint() {
+  const isIssue = document.querySelector('#generalPage').dataset.documentType === 'out'
+  const currency = currencySelect.value || 'VND'
+  const date = document.querySelector('#voucherDate').value
+  const warehousePicker = document.querySelector('#warehousePicker')
+  const rowsForPrint = rows().filter(row =>
+    [2, 3, 4].some(index => row.cells[index]?.textContent.trim())
+  )
+  const accountColumn = isIssue ? { debit: 8, credit: 9 } : { debit: 7, credit: 8 }
+  const distinctAccounts = column => [...new Set(rowsForPrint
+    .map(row => row.cells[column]?.textContent.trim())
+    .filter(Boolean))].join(', ')
+  const setPrintText = (id, value) => {
+    document.getElementById(id).textContent = value || ''
+  }
+
+  setPrintText('voucherPrintTitle', isIssue ? 'PHIẾU XUẤT KHO' : 'PHIẾU NHẬP KHO')
+  setPrintText('voucherPrintDate', printVoucherDate(date, true))
+  setPrintText('voucherPrintNumber', document.querySelector('#voucherNo').value)
+  setPrintText('voucherPrintDebit', distinctAccounts(accountColumn.debit))
+  setPrintText('voucherPrintCredit', distinctAccounts(accountColumn.credit))
+  setPrintText('voucherPrintPartner', document.querySelector('#senderName').value)
+  setPrintText('voucherPrintAddress', document.querySelector('#senderAddress').value)
+  const contractNo = document.querySelector('#contractNo').value.trim()
+  const contractDate = document.querySelector('#contractDate').value
+  setPrintText('voucherPrintContract', [contractNo, contractDate && printVoucherDate(contractDate)].filter(Boolean).join(' - '))
+  setPrintText('voucherPrintReason', document.querySelector('#receiptDescription').value)
+  document.querySelector('#voucherPrintWarehouseLabel').textContent = isIssue ? 'Xuất tại kho:' : 'Nhập tại kho:'
+  setPrintText('voucherPrintWarehouse', document.querySelector('#warehouseName').value || warehousePicker.selectedOptions[0]?.textContent)
+  setPrintText('voucherPrintTransporter', document.querySelector('#transporterName').value)
+  const customs = [document.querySelector('#customsDeclarationNo').value, printVoucherDate(document.querySelector('#customsDeclarationDate').value)].filter(Boolean).join(' - ')
+  const invoice = [document.querySelector('#invoiceNo').value, printVoucherDate(document.querySelector('#invoiceDate').value)].filter(Boolean).join(' - ')
+  setPrintText('voucherPrintCustoms', customs)
+  setPrintText('voucherPrintInvoice', invoice)
+  document.querySelectorAll('.voucherPrintCurrency').forEach(node => { node.textContent = currency })
+
+  const printBody = document.querySelector('#voucherPrintItems')
+  printBody.replaceChildren()
+  rowsForPrint.forEach((row, index) => {
+    const unitIndex = isIssue ? 7 : 9
+    const itemName = row.cells[3]?.textContent.trim() || ''
+    const color = row.cells[4]?.textContent.trim() || ''
+    const quantity = row.cells[10]?.textContent.trim() || ''
+    const itemValues = [
+      String(index + 1),
+      [itemName, color && `Màu: ${color}`].filter(Boolean).join(' · '),
+      row.cells[2]?.textContent.trim() || '',
+      row.cells[unitIndex]?.textContent.trim() || '',
+      quantity,
+      quantity,
+      row.cells[11]?.textContent.trim() || '',
+      row.cells[12]?.textContent.trim() || '',
+    ]
+    const tr = document.createElement('tr')
+    itemValues.forEach(value => {
+      const td = document.createElement('td')
+      td.textContent = value
+      tr.append(td)
+    })
+    printBody.append(tr)
+  })
+  setPrintText('voucherPrintTotal', document.querySelector('#totalAmount').textContent)
+  setPrintText('voucherPrintSignedDate', printVoucherDate(date, true))
+  const amountWords = document.querySelector('#voucherPrintAmountWords')
+  amountWords.textContent = ''
+  amountWords.parentElement.hidden = true
+}
+
+document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
+  const isIssue = document.querySelector('#generalPage').dataset.documentType === 'out'
+  const currency = currencySelect.value || 'VND'
+  const voucherDate = document.querySelector('#voucherDate').value
+  const warehousePicker = document.querySelector('#warehousePicker')
+  const warehouse = document.querySelector('#warehouseName').value.trim() ||
+    (warehousePicker.value ? warehousePicker.selectedOptions[0]?.textContent.trim() : '')
+  const voucherRows = rows().filter(row =>
+    [2, 3, 4].some(index => row.cells[index]?.textContent.trim())
+  )
+  const accountColumns = isIssue ? { debit: 8, credit: 9 } : { debit: 7, credit: 8 }
+  const accounts = column => [...new Set(voucherRows
+    .map(row => row.cells[column]?.textContent.trim())
+    .filter(Boolean))].join(', ')
+  const value = id => document.getElementById(id)?.value?.trim() || ''
+  const escapeHtml = text => String(text ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+  const cell = (text, options = {}) => {
+    const { tag = 'td', colSpan = 1, rowSpan = 1, className = '' } = options
+    return `<${tag}${colSpan > 1 ? ` colspan="${colSpan}"` : ''}${rowSpan > 1 ? ` rowspan="${rowSpan}"` : ''}${className ? ` class="${className}"` : ''} style="font-family:'Times New Roman';font-size:11pt"><font face="Times New Roman" style="font-family:'Times New Roman';font-size:11pt">${escapeHtml(text)}</font></${tag}>`
+  }
+  const contractText = [value('contractNo'), printVoucherDate(value('contractDate'))].filter(Boolean).join(' - ')
+  const customsText = [value('customsDeclarationNo'), printVoucherDate(value('customsDeclarationDate'))].filter(Boolean).join(' - ')
+  const invoiceText = [value('invoiceNo'), printVoucherDate(value('invoiceDate'))].filter(Boolean).join(' - ')
+  const numberToVietnameseWords = input => {
+    const number = Math.max(0, Math.round(input))
+    if (!number) return 'Không đồng'
+    const ones = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín']
+    const scales = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ', 'triệu tỷ']
+    const readGroup = (group, forceHundreds) => {
+      const hundreds = Math.floor(group / 100)
+      const tens = Math.floor((group % 100) / 10)
+      const units = group % 10
+      const words = []
+      if (hundreds || forceHundreds) words.push(`${ones[hundreds]} trăm`)
+      if (tens > 1) {
+        words.push(`${ones[tens]} mươi`)
+        if (units === 1) words.push('mốt')
+        else if (units === 5) words.push('lăm')
+        else if (units) words.push(ones[units])
+      } else if (tens === 1) {
+        words.push('mười')
+        if (units === 5) words.push('lăm')
+        else if (units) words.push(ones[units])
+      } else if (units) {
+        if (hundreds || forceHundreds) words.push('lẻ')
+        words.push(ones[units])
+      }
+      return words.join(' ')
+    }
+    const groups = []
+    let remainder = number
+    while (remainder > 0) {
+      groups.push(remainder % 1000)
+      remainder = Math.floor(remainder / 1000)
+    }
+    const highest = groups.length - 1
+    return groups
+      .map((group, index) => ({ group, index }))
+      .filter(({ group }) => group)
+      .reverse()
+      .map(({ group, index }) => `${readGroup(group, index < highest)} ${scales[index]}`.trim())
+      .join(' ')
+      .replace(/^./, first => first.toLocaleUpperCase('vi-VN')) + ' đồng'
+  }
+  const itemRows = voucherRows.map((row, index) => {
+    const unitIndex = isIssue ? 7 : 9
+    const itemName = row.cells[3]?.textContent.trim() || ''
+    const color = row.cells[4]?.textContent.trim() || ''
+    const quantity = row.cells[10]?.textContent.trim() || ''
+    return `<tr class="voucher-items">${cell(index + 1)}${cell([itemName, color && `Màu: ${color}`].filter(Boolean).join(' · '), { className: 'description' })}${cell(row.cells[2]?.textContent.trim())}${cell(row.cells[unitIndex]?.textContent.trim())}${cell(quantity)}${cell(quantity)}${cell(row.cells[11]?.textContent.trim())}${cell(row.cells[12]?.textContent.trim())}</tr>`
+  }).join('')
+  const amount = document.querySelector('#totalAmount').textContent.trim() || '0'
+  const amountWords = numberToVietnameseWords(parseTableNumber(amount))
+  const title = isIssue ? 'PHIẾU XUẤT KHO' : 'PHIẾU NHẬP KHO'
+  const partnerLabel = isIssue ? 'Họ tên người nhận hàng:' : 'Họ tên người giao hàng:'
+  const warehouseLabel = isIssue ? 'Xuất tại kho:' : 'Nhập tại kho:'
+  const excelColumnWidths = [60, 290, 38, 55, 83, 83, 105, 155]
+  const signatureWidth = excelColumnWidths.reduce((sum, width) => sum + width, 0)
+  const signatureBaseWidth = Math.floor(signatureWidth / 6)
+  const signatureWidths = Array.from({ length: 6 }, (_, index) =>
+    signatureBaseWidth + (index < signatureWidth % 6 ? 1 : 0)
+  )
+  const signatureCols = `<colgroup>${signatureWidths.map(width => `<col width="${width}" style="width:${width}px">`).join('')}</colgroup>`
+  const signatureCell = (text, index, className = '') => {
+    const width = signatureWidths[index]
+    const content = className.includes('strong') ? `<strong>${escapeHtml(text)}</strong>` :
+      className.includes('italic') ? `<i>${escapeHtml(text)}</i>` : escapeHtml(text)
+    return `<td width="${width}" style="width:${width}px;min-width:${width}px;max-width:${width}px;text-align:center;font-family:'Times New Roman';font-size:11pt">${content}</td>`
+  }
+  const rowsHtml = [
+    `<tr>${cell('Đơn vị: CÔNG TY CỔ PHẦN AN HƯNG', { colSpan: 4, className: 'left strong' })}${cell('Mẫu số 01 – VT', { colSpan: 4, className: 'center strong' })}</tr>`,
+    `<tr>${cell('', { colSpan: 4 })}${cell('(Ban hành theo TT số: 200/2014/TT-BTC) · ngày 22/12/2014 của Bộ trưởng BTC', { colSpan: 4, className: 'center' })}</tr>`,
+    `<tr>${cell(title, { colSpan: 8, className: 'title' })}</tr>`,
+    `<tr>${cell('', { colSpan: 2 })}${cell(printVoucherDate(voucherDate, true), { colSpan: 4, className: 'center' })}${cell(`Nợ: ${accounts(accountColumns.debit)}`, { colSpan: 2 })}</tr>`,
+    `<tr>${cell('', { colSpan: 2 })}${cell(`Số: ${value('voucherNo')}`, { colSpan: 4, className: 'center' })}${cell(`Có: ${accounts(accountColumns.credit)}`, { colSpan: 2 })}</tr>`,
+    `<tr>${cell('', { colSpan: 2 })}${cell('Liên 1: Lưu thanh toán', { colSpan: 4, className: 'center' })}${cell(`Tờ khai: ${customsText} · Hóa đơn: ${invoiceText}`, { colSpan: 2 })}</tr>`,
+    `<tr>${cell(`${partnerLabel} ${value('senderName')}`, { colSpan: 8, className: 'left' })}</tr>`,
+    `<tr>${cell(`Địa chỉ: ${value('senderAddress')}`, { colSpan: 8, className: 'left' })}</tr>`,
+    `<tr>${cell(`Theo chứng từ: ${contractText}`, { colSpan: 8, className: 'left' })}</tr>`,
+    `<tr>${cell(`Lý do ${isIssue ? 'xuất' : 'nhập'} kho: ${value('receiptDescription')} · Người vận chuyển: ${value('transporterName')}`, { colSpan: 8, className: 'left' })}</tr>`,
+    `<tr>${cell(`${warehouseLabel} ${warehouse}`, { colSpan: 4, className: 'left' })}${cell(`Địa điểm: ${value('senderAddress')}`, { colSpan: 4, className: 'left' })}</tr>`,
+    `<tr class="table-head">${cell('STT', { tag: 'th', rowSpan: 2 })}${cell('Tên nhãn hiệu, quy cách phẩm chất vật tư, dụng cụ, sản phẩm, hàng hóa', { tag: 'th', rowSpan: 2 })}${cell('Mã số', { tag: 'th', rowSpan: 2 })}${cell('Đơn vị tính', { tag: 'th', rowSpan: 2 })}${cell('Số lượng', { tag: 'th', colSpan: 2 })}${cell(`Đơn giá (${currency})`, { tag: 'th', rowSpan: 2 })}${cell(`Thành tiền (${currency})`, { tag: 'th', rowSpan: 2 })}</tr>`,
+    `<tr class="table-head">${cell('Yêu cầu', { tag: 'th' })}${cell(isIssue ? 'Thực xuất' : 'Thực nhập', { tag: 'th' })}</tr>`,
+    `<tr class="letters">${['A', 'B', 'C', 'D', '1', '2', '3', '4'].map(text => cell(text, { tag: 'th' })).join('')}</tr>`,
+    itemRows || `<tr class="voucher-items">${Array.from({ length: 8 }, () => cell('')).join('')}</tr>`,
+    `<tr class="total">${cell('')}${cell('Cộng tiền hàng', { colSpan: 6, className: 'left strong' })}${cell(amount, { className: 'right strong' })}</tr>`,
+    `<tr class="total">${cell('')}${cell('Tổng thanh toán', { colSpan: 6, className: 'left strong' })}${cell(amount, { className: 'right strong' })}</tr>`,
+    `<tr class="amount-words">${cell(`Tổng số tiền (viết bằng chữ): ${amountWords}`, { colSpan: 8, className: 'left strong' })}</tr>`,
+    `<tr class="signed-date">${cell(printVoucherDate(voucherDate, true), { colSpan: 8, className: 'right' })}</tr>`,
+    `<tr class="signatures"><td colspan="8"><table class="signature-table" width="${signatureWidth}" style="width:${signatureWidth}px;table-layout:fixed">${signatureCols}<tbody><tr>${['Người lập phiếu', 'Người giao hàng', 'Thủ kho', 'Phụ trách bộ phận', 'Kế toán trưởng', 'Thủ trưởng đơn vị'].map((text, index) => signatureCell(text, index, 'strong')).join('')}</tr></tbody></table></td></tr>`,
+    `<tr class="signatures"><td colspan="8"><table class="signature-table" width="${signatureWidth}" style="width:${signatureWidth}px;table-layout:fixed">${signatureCols}<tbody><tr>${Array.from({ length: 6 }, (_, index) => signatureCell('(Ký, họ tên)', index, 'italic')).join('')}</tr></tbody></table></td></tr>`,
+  ].join('')
+  const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><style>
+    @page Section1{size:841.9pt 595.3pt;margin:28.3pt;mso-page-orientation:landscape;mso-paper-size:9}
+    div.Section1{page:Section1}
+    *{font-family:"Times New Roman",serif!important}
+    body{margin:0;font-family:"Times New Roman",serif;font-size:11pt;color:#111}
+    table{width:869px;border-collapse:collapse;table-layout:fixed;mso-fit-to-page:yes}
+    col{mso-width-source:userset}
+    td,th{border:0;padding:4px;vertical-align:middle;mso-number-format:"\\@"}
+    .table-head th,.letters th,.voucher-items td,.total td{border:1px solid #777}
+    .left{text-align:left}.center{text-align:center}.right{text-align:right}.strong{font-weight:bold}.italic{font-style:italic}
+    .title{font-weight:bold;font-size:11pt;text-align:center;padding:7px}
+    .table-head th{text-align:center;white-space:normal;height:34px}
+    .letters th{text-align:center;font-style:italic;height:20px}
+    .description{text-align:left;white-space:normal;word-break:break-word}
+    .total{font-weight:bold}.no-border{border-left-color:#fff;border-right-color:#fff}
+    .signatures>td{border:0;padding:0}
+    .signature-table{width:100%;table-layout:fixed}
+    .signature-table td{height:24px;border:0;padding:2px 0;text-align:center}
+    .signatures:last-child .signature-table td{height:30px;vertical-align:top}
+  </style></head><body><div class="Section1"><table><colgroup>${excelColumnWidths.map(width => `<col width="${width}" style="width:${width}px">`).join('')}</colgroup><tbody>${rowsHtml}</tbody></table></div></body></html>`
+  const blob = new Blob([`\uFEFF${html}`], { type: 'application/vnd.ms-excel;charset=utf-8' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  const prefix = isIssue ? 'PX' : 'PN'
+  link.download = `${value('voucherNo') || `${prefix}-phieu-kho`}.xls`
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 })
-window.addEventListener('afterprint', () =>
-  document.body.classList.remove('printing-voucher')
-)
 
 const voucherStoreKey = 'quanlykho-vouchers'
 const voucherSearchDialog = document.querySelector('#voucherSearchDialog')
@@ -2000,25 +2228,6 @@ document
 document
   .querySelector('#closeVoucherSearch')
   .addEventListener('click', () => voucherSearchDialog.close())
-document.querySelector('#deleteVoucher').addEventListener('click', () => {
-  const records = readVouchers()
-  const index = records.findIndex(
-    item =>
-      item.id === currentSavedId ||
-      (item.type === documentType() && item.number === documentNumber())
-  )
-  if (index < 0) {
-    notify('Phiếu hiện tại chưa được lưu nên không có dữ liệu để xóa.')
-    return
-  }
-  if (!window.confirm(`Xóa chứng từ ${records[index].number}?`)) return
-  records.splice(index, 1)
-  if (writeVouchers(records)) {
-    currentSavedId = null
-    createVoucher(false)
-    notify('Đã xóa chứng từ.')
-  }
-})
 async function createSplitVouchers() {
   const button = document.querySelector('#createVoucher')
   const type = documentType()
@@ -2193,7 +2402,6 @@ async function initializeUserAccess() {
     }
 
     document.querySelector('#userManagementBtn').hidden = true
-    document.querySelector('#deleteVoucher').hidden = true
     applyWarehouseRestrictions()
   } catch {
     window.location.replace('/admin')
