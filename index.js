@@ -1597,7 +1597,12 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     return `<tr class="voucher-items">${cell(index + 1)}${cell([itemName, color && `Màu: ${color}`].filter(Boolean).join(' · '), { className: 'description' })}${cell(row.cells[2]?.textContent.trim())}${cell(row.cells[unitIndex]?.textContent.trim())}${cell(quantity)}${cell(quantity)}${cell(row.cells[11]?.textContent.trim())}${cell(row.cells[12]?.textContent.trim())}</tr>`
   }).join('')
   const amount = document.querySelector('#totalAmount').textContent.trim() || '0'
-  const amountWords = numberToVietnameseWords(parseTableNumber(amount))
+  const subtotal = parseTableNumber(amount)
+  const taxAmount = Math.round(subtotal * 0.08)
+  const totalAmount = subtotal + taxAmount
+  const taxText = taxAmount.toLocaleString('vi-VN')
+  const totalText = totalAmount.toLocaleString('vi-VN')
+  const amountWords = numberToVietnameseWords(totalAmount)
   const title = isIssue ? 'PHIẾU XUẤT KHO' : 'PHIẾU NHẬP KHO'
   const partnerLabel = isIssue ? 'Họ tên người nhận hàng:' : 'Họ tên người giao hàng:'
   const warehouseLabel = isIssue ? 'Xuất tại kho:' : 'Nhập tại kho:'
@@ -1631,7 +1636,8 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     `<tr class="letters">${['A', 'B', 'C', 'D', '1', '2', '3', '4'].map(text => cell(text, { tag: 'th' })).join('')}</tr>`,
     itemRows || `<tr class="voucher-items">${Array.from({ length: 8 }, () => cell('')).join('')}</tr>`,
     `<tr class="total">${cell('')}${cell('Cộng tiền hàng', { colSpan: 6, className: 'left strong' })}${cell(amount, { className: 'right strong' })}</tr>`,
-    `<tr class="total">${cell('')}${cell('Tổng thanh toán', { colSpan: 6, className: 'left strong' })}${cell(amount, { className: 'right strong' })}</tr>`,
+    `<tr class="total">${cell('')}${cell('Thuế suất 8%', { colSpan: 6, className: 'left strong' })}${cell(taxText, { className: 'right strong' })}</tr>`,
+    `<tr class="total">${cell('')}${cell('Tổng thanh toán', { colSpan: 6, className: 'left strong' })}${cell(totalText, { className: 'right strong' })}</tr>`,
     `<tr class="amount-words">${cell(`Tổng số tiền (viết bằng chữ): ${amountWords}`, { colSpan: 8, className: 'left strong' })}</tr>`,
     `<tr class="signed-date">${cell(printVoucherDate(voucherDate, true), { colSpan: 8, className: 'right' })}</tr>`,
     `<tr class="signatures"><td colspan="8"><table class="signature-table" width="${signatureWidth}" style="width:${signatureWidth}px;table-layout:fixed">${signatureCols}<tbody><tr>${['Người lập phiếu', 'Người giao hàng', 'Thủ kho', 'Phụ trách bộ phận', 'Kế toán trưởng', 'Thủ trưởng đơn vị'].map((text, index) => signatureCell(text, index, 'strong')).join('')}</tr></tbody></table></td></tr>`,
