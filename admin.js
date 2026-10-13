@@ -3,6 +3,7 @@ const loginTitle = document.querySelector('#loginTitle')
 const loginIntro = document.querySelector('#loginIntro')
 const loginMessage = document.querySelector('#loginMessage')
 const passwordInput = document.querySelector('#password')
+const togglePasswordVisibility = document.querySelector('#togglePasswordVisibility')
 const submitLogin = document.querySelector('#submitLogin')
 const setupNote = document.querySelector('#setupNote')
 const loginScene = document.querySelector('#loginScene')
@@ -14,7 +15,17 @@ const authApiBase =
   window.location.port === '8888'
     ? ''
     : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8888`
-
+// dòng hiện thị mật khẩu
+    togglePasswordVisibility.addEventListener('click', () => {
+  const showPassword = passwordInput.type === 'password'
+  passwordInput.type = showPassword ? 'text' : 'password'
+  const label = showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'
+  togglePasswordVisibility.setAttribute('aria-label', label)
+  togglePasswordVisibility.setAttribute('title', label)
+  togglePasswordVisibility.setAttribute('aria-pressed', String(showPassword))
+  passwordInput.focus()
+})
+//
 async function initializeLogin() {
   try {
     const response = await fetch(`${authApiBase}/api/auth/status`, {

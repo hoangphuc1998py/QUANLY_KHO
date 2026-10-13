@@ -381,6 +381,8 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'admin.html')))
 app.get('/admin.css', (_req, res) => res.sendFile(path.join(__dirname, 'admin.css')))
 app.get('/admin.js', (_req, res) => res.sendFile(path.join(__dirname, 'admin.js')))
+app.get('/favicon.png', (_req, res) => res.sendFile(path.join(__dirname, 'favicon.png')))
+
 
 function requireAdmin(req, res, next) {
   const session = getAdminSession(req)
@@ -418,6 +420,32 @@ app.get('/api/admin/users', requireAdminRole, (_req, res) => {
   const users = db.prepare("SELECT id, username, warehouse_code AS warehouseCode, warehouse_codes AS warehouseCodes, created_at AS createdAt FROM admin_users WHERE role = 'warehouse' ORDER BY username COLLATE NOCASE").all()
     .map(user => ({ ...user, warehouseCodes: assignedWarehouseCodes(user) }))
   res.json({ success: true, data: users })
+})
+
+app.post('/api/admin/users/:id/reset-password', requireAdminRole, (req, res) => {
+  const userId = Number(req.params.id)
+  const password = typeof req.body?.password === 'string' ? req.body.password : ''
+  if (!Number.isSafeInteger(userId) || userId < 1) {
+    res.status(400).json({ success: false, error: 'Tài khoản không hợp lệ.' })
+    return
+  }
+  if (password.length < 8) {
+    res.status(400).json({ success: false, error: 'Mật khẩu mới cần có ít nhất 8 ký tự.' })
+    return
+  }
+  const user = db.prepare("SELECT id, username FROM admin_users WHERE id = ? AND role = 'warehouse'").get(userId)
+  if (!user) {
+    res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản kho.' })
+    return
+  }
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
+  db.prepare('UPDATE admin_users SET password_salt = ?, password_hash = ? WHERE id = ?').run(salt, hash, user.id)
+  for (const [token, session] of adminSessions) {
+    if (session.username.toLocaleLowerCase('vi') === user.username.toLocaleLowerCase('vi'))
+      adminSessions.delete(token)
+  }
+  res.json({ success: true, data: { id: user.id, username: user.username } })
 })
 
 app.post('/api/admin/users', requireAdminRole, (req, res) => {
@@ -1120,6 +1148,7 @@ app.post('/api/inventory-vouchers/split', (req, res) => {
     res.status(422).json({ success: false, error: error.message })
   }
 })
+// lịch sử đăng nhập
 
 if (require.main === module) {
   app.listen(8888, '0.0.0.0', () => {

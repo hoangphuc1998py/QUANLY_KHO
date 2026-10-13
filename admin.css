@@ -161,7 +161,32 @@ form input {
   transition: border-color .2s, background .2s, box-shadow .2s;
 }
 form input::placeholder { color: #ffffff71; }
-form input:focus { border-color: #f3d980a8; background: #ffffff18; box-shadow: 0 0 0 3px #f3d9801e; }
+/* form input:focus { border-color: #f3d980a8; background: #ffffff18; box-shadow: 0 0 0 3px #f3d9801e; } */
+.password-field { position: relative; }
+.password-field input { padding-right: 48px; }
+form .password-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d4d1c7;
+  box-shadow: none;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+form .password-visibility-toggle:hover { background: #ffffff14; filter: none; }
+.password-visibility-toggle:focus-visible { outline: 2px solid #f3d980; outline-offset: 1px; }
+.eye-icon { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.eye-closed, .password-visibility-toggle[aria-pressed="true"] .eye-open { display: none; }
+.password-visibility-toggle[aria-pressed="true"] .eye-closed { display: block; }
 form button {
   height: 46px;
   margin-top: 6px;

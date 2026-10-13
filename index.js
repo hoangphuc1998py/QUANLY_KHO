@@ -9,6 +9,31 @@ const apiBaseUrl =
   window.location.port === '8888'
     ? ''
     : `${window.location.protocol}//${window.location.hostname || 'localhost'}:8888`
+// đồng hồ
+const currentClock = document.querySelector('#currentClock')
+const clockTime = currentClock.querySelector('.live-clock-time')
+const clockDate = currentClock.querySelector('.live-clock-date')
+const vietnamTimeFormatter = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+const vietnamDateFormatter = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+function updateCurrentClock() {
+  const now = new Date()
+  clockTime.textContent = vietnamTimeFormatter.format(now)
+  clockDate.textContent = vietnamDateFormatter.format(now)
+  currentClock.dateTime = now.toISOString()
+}
+updateCurrentClock()
+window.setInterval(updateCurrentClock, 1000)
 
 function apiUrl(path) {
   return `${apiBaseUrl}${path}`
@@ -109,6 +134,9 @@ function copyRow() {
   clone.querySelectorAll('select[data-linked-warehouse]').forEach(select => {
     select.value = ''
   })
+  const warehouseCell = clone.cells[6]
+  if (warehouseCell && warehouseCell.getAttribute('aria-readonly') !== 'true')
+  configureLinkedWarehouseCell(warehouseCell)
   clone.querySelector('.amount').textContent = ''
   tableBody.append(clone)
   clone.querySelector('[contenteditable="true"]')?.focus()
@@ -324,12 +352,15 @@ function importExcelRows(matrix) {
     values.forEach((value, index) => {
       if (row.cells[index])
         if (index === warehouseColumn) {
-          configureLinkedWarehouseCell(
-            row.cells[index],
-            currentUser?.role === 'warehouse'
-              ? currentUser.warehouseCode
-              : value
-          )
+          // configureLinkedWarehouseCell(
+          //   row.cells[index],
+          //   currentUser?.role === 'warehouse'
+          //     ? currentUser.warehouseCode
+          //     : value
+          // )
+                    // Keep the warehouse code from each imported row. The user-level
+          // permissions are enforced by the server when the voucher is saved.
+          configureLinkedWarehouseCell(row.cells[index], value)
         } else {
           row.cells[index].textContent = value
         }
@@ -666,8 +697,7 @@ function configureLinkedWarehouseCell(cell, selectedValue = '') {
   stores.forEach(store => select.append(new Option(store, store)))
   if (
     selectedValue &&
-    !stores.includes(selectedValue) &&
-    currentUser?.role !== 'warehouse'
+    !stores.includes(selectedValue) 
   )
     select.append(new Option(selectedValue, selectedValue))
   select.value = selectedValue
@@ -1542,8 +1572,9 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
   const cell = (text, options = {}) => {
-    const { tag = 'td', colSpan = 1, rowSpan = 1, className = '' } = options
-    return `<${tag}${colSpan > 1 ? ` colspan="${colSpan}"` : ''}${rowSpan > 1 ? ` rowspan="${rowSpan}"` : ''}${className ? ` class="${className}"` : ''} style="font-family:'Times New Roman';font-size:11pt"><font face="Times New Roman" style="font-family:'Times New Roman';font-size:11pt">${escapeHtml(text)}</font></${tag}>`
+   const { tag = 'td', colSpan = 1, rowSpan = 1, className = '', style = '' } = options
+    const content = escapeHtml(text).replaceAll('\n', '<br>')
+    return `<${tag}${colSpan > 1 ? ` colspan="${colSpan}"` : ''}${rowSpan > 1 ? ` rowspan="${rowSpan}"` : ''}${className ? ` class="${className}"` : ''} style="font-family:'Times New Roman';font-size:11pt;${style}"><font face="Times New Roman" style="font-family:'Times New Roman';font-size:11pt">${content}</font></${tag}>`
   }
   const contractText = [value('contractNo'), printVoucherDate(value('contractDate'))].filter(Boolean).join(' - ')
   const customsText = [value('customsDeclarationNo'), printVoucherDate(value('customsDeclarationDate'))].filter(Boolean).join(' - ')
@@ -1604,6 +1635,10 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
   const totalText = totalAmount.toLocaleString('vi-VN')
   const amountWords = numberToVietnameseWords(totalAmount)
   const title = isIssue ? 'PHIẾU XUẤT KHO' : 'PHIẾU NHẬP KHO'
+   const formNumber = isIssue ? 'Mẫu số 02 – VT' : 'Mẫu số 01 – VT'
+  const formCircular = isIssue
+    ? '(Ban hành theo Thông tư số 99/2025/TT-BTC\nngày 27/10/2025 của Bộ Tài Chính)'
+    : '(Ban hành theo TT số: 99/2025/TT-BTC) · ngày 27/10/2025 của Bộ trưởng BTC'
   const partnerLabel = isIssue ? 'Họ tên người nhận hàng:' : 'Họ tên người giao hàng:'
   const warehouseLabel = isIssue ? 'Xuất tại kho:' : 'Nhập tại kho:'
   const excelColumnWidths = [60, 290, 38, 55, 83, 83, 105, 155]
@@ -1620,8 +1655,8 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     return `<td width="${width}" style="width:${width}px;min-width:${width}px;max-width:${width}px;text-align:center;font-family:'Times New Roman';font-size:11pt">${content}</td>`
   }
   const rowsHtml = [
-    `<tr>${cell('Đơn vị: CÔNG TY CỔ PHẦN AN HƯNG', { colSpan: 4, className: 'left strong' })}${cell('Mẫu số 01 – VT', { colSpan: 4, className: 'center strong' })}</tr>`,
-    `<tr>${cell('', { colSpan: 4 })}${cell('(Ban hành theo TT số: 200/2014/TT-BTC) · ngày 22/12/2014 của Bộ trưởng BTC', { colSpan: 4, className: 'center' })}</tr>`,
+    `<tr>${cell('Đơn vị: CÔNG TY CỔ PHẦN AN HƯNG', { colSpan: 4, className: 'left strong' })}${cell(formNumber, { colSpan: 4, className: 'center strong form-reference', style: 'text-align:center;vertical-align:middle;line-height:1.25' })}</tr>`,
+    `<tr>${cell('', { colSpan: 4 })}${cell(formCircular, { colSpan: 4, className: 'center form-reference', style: 'text-align:center;vertical-align:middle;line-height:1.25' })}</tr>`,
     `<tr>${cell(title, { colSpan: 8, className: 'title' })}</tr>`,
     `<tr>${cell('', { colSpan: 2 })}${cell(printVoucherDate(voucherDate, true), { colSpan: 4, className: 'center' })}${cell(`Nợ: ${accounts(accountColumns.debit)}`, { colSpan: 2 })}</tr>`,
     `<tr>${cell('', { colSpan: 2 })}${cell(`Số: ${value('voucherNo')}`, { colSpan: 4, className: 'center' })}${cell(`Có: ${accounts(accountColumns.credit)}`, { colSpan: 2 })}</tr>`,
@@ -2338,11 +2373,33 @@ function renderUserWarehouseCheckboxes() {
   }
 }
 
+async function loadWarehouseUsersForPasswordReset() {
+  const select = document.querySelector('#existingWarehouseUser')
+  const response = await fetch(apiUrl('/api/admin/users'))
+  const result = await readApiJson(response, 'tải danh sách tài khoản kho')
+  if (!response.ok || !result.success)
+    throw new Error(result.error || 'Không thể tải danh sách tài khoản kho.')
+  select.replaceChildren(new Option('Chọn user', ''))
+  result.data.forEach(user => select.add(new Option(user.username, user.id)))
+}
+
 document.querySelector('#userManagementBtn').addEventListener('click', async () => {
   document.querySelector('#createWarehouseUserForm').reset()
   document.querySelector('#createUserMessage').textContent = ''
-  if (!warehouseSites.length) await loadWarehouseSites()
-  renderUserWarehouseCheckboxes()
+  try {
+      await Promise.all([
+        loadWarehouseUsersForPasswordReset(),
+        (async () => {
+          if (!warehouseSites.length) await loadWarehouseSites()
+          renderUserWarehouseCheckboxes()
+        })(),
+      ])
+    } catch (error) {
+      document.querySelector('#createUserMessage').textContent = apiErrorMessage(
+        error,
+        'Không thể tải dữ liệu tài khoản.'
+      )
+    }
   createWarehouseUserDialog.showModal()
 })
 document
@@ -2388,6 +2445,41 @@ document
       saveButton.disabled = false
     }
   })
+  document
+  .querySelector('#resetWarehouseUserPassword')
+  .addEventListener('click', async event => {
+    const message = document.querySelector('#createUserMessage')
+    const button = event.currentTarget
+    const userId = document.querySelector('#existingWarehouseUser').value
+    const password = document.querySelector('#resetUserPassword').value
+    message.textContent = ''
+    if (!userId) {
+      message.textContent = 'Vui lòng chọn user cần cấp lại mật khẩu.'
+      return
+    }
+    if (password.length < 8) {
+      message.textContent = 'Mật khẩu mới cần có ít nhất 8 ký tự.'
+      return
+    }
+    button.disabled = true
+    try {
+      const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const result = await readApiJson(response, 'cấp lại mật khẩu')
+      if (!response.ok || !result.success)
+        throw new Error(result.error || 'Không thể cấp lại mật khẩu.')
+      document.querySelector('#resetUserPassword').value = ''
+      notify(`Đã cấp lại mật khẩu cho user ${result.data.username}.`)
+    } catch (error) {
+      message.textContent = apiErrorMessage(error, 'Không thể cấp lại mật khẩu.')
+    } finally {
+      button.disabled = false
+    }
+  })
+
 async function initializeUserAccess() {
   try {
     const response = await fetch(apiUrl('/api/auth/me'))
@@ -2571,3 +2663,4 @@ document.addEventListener('keydown', event => {
     else copyRow()
   }
 })
+// lịch sử đăng nhập

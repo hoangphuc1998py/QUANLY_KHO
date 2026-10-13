@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>QUẢN LÝ KHO IT-ANHUCO</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v=3" />
     <link rel="stylesheet" href="index.css" />
   </head>
   <body>
@@ -19,10 +20,35 @@
       </header>
       <div class="help">
         <span>❔</span> <a href="#" id="helpLink">Hướng dẫn - F1</a>
+        <time id="currentClock" class="live-clock" aria-label="Thời gian hiện tại tại Việt Nam">
+          <span class="live-clock-time">--:--:--</span>
+          <span class="live-clock-date">--/--/----</span>
+        </time>
         <span id="currentUserLabel" class="current-user" hidden></span>
-        <button type="button" id="userManagementBtn" hidden>Tạo user</button>
+        <!-- <button type="button" id="userManagementBtn" hidden>Tạo user</button>
         <button type="button" id="changePasswordBtn">Đổi mật khẩu</button>
-        <button type="button" id="logoutBtn">Đăng xuất</button>
+        <button type="button" id="logoutBtn">Đăng xuất</button> -->
+        
+        <button type="button" id="userManagementBtn" hidden>
+  <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="9" cy="7" r="3.5"/>
+    <path d="M3 20v-1a6 6 0 0 1 12 0v1M19 8v8M15 12h8"/>
+  </svg>
+  Tạo user
+</button>
+<button type="button" id="changePasswordBtn">
+  <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="8" cy="15" r="4"/>
+    <path d="m11 12 9-9 2 2-2 2 2 2-3 3-2-2-3 3"/>
+  </svg>
+  Đổi mật khẩu
+</button>
+<button type="button" id="logoutBtn">
+  <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M13 4h7v16h-7M3 12h11M10 8l4 4-4 4"/>
+  </svg>
+  Đăng xuất
+</button>
       </div>
       <nav class="page-switcher" aria-label="Trang nghiệp vụ">
         <button class="page-choice active" data-page="in">
@@ -122,7 +148,7 @@
                 </div>
                 <span>Ngày hợp đồng:</span>
                 <div class="input-group">
-                  <input id="contractDate" type="date" value="2019-10-13" />
+                  <input id="contractDate" type="date"  />
                 </div>
               </div>
             </fieldset>
@@ -142,7 +168,7 @@
             <label class="doc-row"
               ><span>Ngày chứng từ: <b>*</b></span>
               <div class="input-group">
-                <input id="voucherDate" type="date" value="2019-12-13" /></div
+                <input id="voucherDate" type="date"  /></div
             ></label>
             <label class="doc-row"
               ><span>Số chứng từ gốc:</span><input id="originalVoucherNo"
@@ -1253,9 +1279,18 @@
         <footer><button type="button" id="cancelPasswordChange">Hủy</button><button type="submit" id="savePasswordChange">Lưu mật khẩu</button></footer>
       </form>
     </dialog>
+    <!-- lịch sử đăng nhập -->
+     
     <dialog id="createWarehouseUserDialog" class="password-dialog">
       <form id="createWarehouseUserForm">
-        <header><div><h2>Tạo tài khoản kho</h2><p>User chỉ được lập phiếu nhập, xuất và xem báo cáo tại các kho được cấp.</p></div><button type="button" id="closeCreateUserDialog" aria-label="Đóng">×</button></header>
+        <header><div><h2>Quản lý tài khoản kho</h2><p>Tạo tài khoản kho hoặc cấp lại mật khẩu cho user đã có.</p></div><button type="button" id="closeCreateUserDialog" aria-label="Đóng">×</button></header>
+        <label for="existingWarehouseUser">Cấp lại mật khẩu cho user</label>
+        <select id="existingWarehouseUser"><option value="">Chọn user</option></select>
+        <label for="resetUserPassword">Mật khẩu mới</label>
+        <input id="resetUserPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Ít nhất 8 ký tự">
+        <button type="button" id="resetWarehouseUserPassword" class="btn-password-reset">Cấp lại mật khẩu</button>
+        <hr>
+        <h3>Tạo tài khoản kho mới</h3>
         <label for="newUsername">Tên đăng nhập</label>
         <input id="newUsername" autocomplete="off" minlength="3" maxlength="40" placeholder="Ví dụ: tuan_ap" required>
         <label for="newUserPassword">Mật khẩu ban đầu</label>
@@ -1266,6 +1301,8 @@
         <footer><button type="button" id="cancelCreateUser">Hủy</button><button type="submit" id="saveNewUser">Tạo user</button></footer>
       </form>
     </dialog>
+    <!-- Lịch sử đăng nhập -->
+     
     <footer class="site-copyright">Copyright by IT - ANHUCO</footer>
     <script src="/node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="index.js"></script>

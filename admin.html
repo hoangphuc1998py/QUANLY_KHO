@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#171a19" />
     <title>Đăng nhập · ANHUCO</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="stylesheet" href="/admin.css" />
   </head>
   <body>
@@ -35,7 +36,20 @@
           <label for="username">Tên đăng nhập</label>
           <input id="username" name="username" autocomplete="username" placeholder="Nhập tên đăng nhập" required minlength="3" maxlength="40" />
           <label for="password">Mật khẩu</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" required />
+          <!-- <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" required /> -->
+         <div class="password-field">
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" required />
+            <button id="togglePasswordVisibility" class="password-visibility-toggle" type="button" aria-label="Hiện mật khẩu" aria-pressed="false" title="Hiện mật khẩu">
+              <svg class="eye-icon eye-open" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <svg class="eye-icon eye-closed" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a16 16 0 0 1-3 3.8M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7a10 10 0 0 0 4-.8" />
+              </svg>
+            </button>
+          </div>
           <p class="message" id="loginMessage" role="alert" aria-live="polite"></p>
           <button id="submitLogin" type="submit">Đăng nhập</button>
         </form>
