@@ -1,6 +1,6 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-family: 'Segoe UI Variable', "Segoe UI", Arial, sans-serif;
   color: #f4f1e8;
   background: #171a19;
   font-synthesis: none;
@@ -207,7 +207,7 @@ form button:disabled { opacity: .65; cursor: wait; }
 footer { margin-top: 23px; color: #aaa99f; font-size: 11px; text-align: center; }
 
 .login-layout.is-open { --lamp-glow: .82; }
-.login-layout.is-open .login-panel { opacity: 1; visibility: visible; transform: translateX(0) scale(1); }
+.login-layout.is-open .login-panel { opacity: 1; visibility: visible; transform: translateX(0) scale(1); animation: login-panel-enter .48s cubic-bezier(.2,.75,.25,1) both; }
 .login-layout.is-open .lamp-cord { transform: scaleY(1.1); }
 .login-layout.is-open .lamp-light { opacity: 1; }
 
@@ -220,4 +220,9 @@ footer { margin-top: 23px; color: #aaa99f; font-size: 11px; text-align: center; 
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+@keyframes login-panel-enter {
+  from { opacity: 0; transform: translateX(18px) scale(.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }

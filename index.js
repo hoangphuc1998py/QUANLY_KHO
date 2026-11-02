@@ -49,8 +49,11 @@ function apiErrorMessage(error, fallback) {
 async function readApiJson(response, action) {
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.toLowerCase().includes('application/json')) {
+    const serverHint = response.status === 404
+      ? 'Endpoint này chưa có trên máy chủ đang chạy. Hãy dừng máy chủ cũ, chạy npm start từ thư mục C:\\Users\\IT\\QUANLY_KHO rồi tải lại trang.'
+      : 'Hãy khởi động lại máy chủ bằng npm start.'
     throw new Error(
-      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). Hãy khởi động lại máy chủ bằng npm start.`
+      `Máy chủ không trả JSON cho chức năng ${action} (HTTP ${response.status}). ${serverHint}`
     )
   }
   try {
@@ -60,11 +63,11 @@ async function readApiJson(response, action) {
   }
 }
 
-function notify(message) {
+function notify(message, duration = 2200) {
   toast.textContent = message
   toast.classList.add('show')
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200)
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration)
 }
 
 function rows() {
@@ -424,6 +427,14 @@ document.querySelectorAll('.tab').forEach(tab =>
   })
 )
 
+const goodsTypeOptions = [
+  'Nguyên liệu',
+  'Phụ liệu',
+  'Thành phẩm',
+  'Hàng mẫu',
+  'Công cụ dụng cụ',
+]
+
 const pagePresets = {
   in: {
     title: 'Phiếu nhập kho kế toán (Gia công)',
@@ -431,13 +442,7 @@ const pagePresets = {
     code: '',
     voucherAction: '⟳ Tạo phiếu nhập kho gộp...',
     voucherType: ['Thành phẩm sản xuất', 'Nhập mua hàng', 'Nhập khác'],
-    goodsType: [
-      'Nguyên liệu',
-      'Phụ liệu',
-      'Thành phẩm',
-      { label: 'Sản phẩm mẫu', value: 'Sản phẩm' },
-      'Công cụ dụng cụ',
-    ],
+    goodsType: goodsTypeOptions,
     headers: [
       '▧',
       'STT',
@@ -456,16 +461,11 @@ const pagePresets = {
   },
   out: {
     title: 'Phiếu xuất kho kế toán (Gia công)',
-    receiver: 'Kho xuất:',
+    receiver: 'Kho xuất/khách hàng:',
     code: '',
     voucherAction: '⟳ Tạo phiếu xuất kho gộp...',
-    voucherType: ['Sản xuất', 'Xuất bán', 'Xuất khác'],
-    goodsType: [
-      { label: 'Sản phẩm mẫu', value: 'Sản phẩm' },
-      'Nguyên liệu',
-      'Phụ liệu',
-      'Công cụ dụng cụ',
-    ],
+    voucherType: ['Sản xuất', { label: 'Xuất trả NCC', value: 'Xuất bán' }, 'Xuất khác'],
+    goodsType: goodsTypeOptions,
     headers: [
       '▧',
       'STT',
@@ -576,7 +576,7 @@ function changePage(page) {
   document.querySelector('.tabs').classList.toggle('hidden', reportMode)
   document.querySelector('.actions').classList.toggle('hidden', reportMode)
   document
-    .querySelectorAll('.page-choice')
+    .querySelectorAll('.page-choice[data-page]')
     .forEach(button =>
       button.classList.toggle('active', button.dataset.page === page)
     )
@@ -627,7 +627,7 @@ function changePage(page) {
   setOptions(
     document.querySelector('#goodsType'),
     config.goodsType,
-    page === 'out' ? 'Sản phẩm' : 'Nguyên liệu'
+    page === 'out' ? 'Thành phẩm' : 'Nguyên liệu'
   )
   document.querySelectorAll('#itemsTable thead th').forEach((header, index) => {
     header.textContent = config.headers[index]
@@ -638,7 +638,7 @@ function changePage(page) {
 }
 
 document
-  .querySelectorAll('.page-choice')
+  .querySelectorAll('.page-choice[data-page]')
   .forEach(button =>
     button.addEventListener('click', () => changePage(button.dataset.page))
   )
@@ -897,10 +897,37 @@ function balanceText(value) {
   return value < 0 ? `(${reportNumber(Math.abs(value))})` : reportNumber(value)
 }
 
+function wrapReportText(text, maxCharacters = 20) {
+  const lines = []
+  let line = ''
+  for (const sourceWord of String(text).trim().split(/\s+/)) {
+    let word = sourceWord
+    const wordCharacters = Array.from(word)
+    while (wordCharacters.length > maxCharacters) {
+      if (line) {
+        lines.push(line)
+        line = ''
+      }
+      lines.push(wordCharacters.splice(0, maxCharacters).join(''))
+    }
+    word = wordCharacters.join('')
+    if (!word) continue
+    if (line && Array.from(`${line} ${word}`).length > maxCharacters) {
+      lines.push(line)
+      line = word
+    } else {
+      line = line ? `${line} ${word}` : word
+    }
+  }
+  if (line) lines.push(line)
+  return lines.join('\n')
+}
+
 function addReportRow(tbody, values, className = '') {
+  const table = tbody.closest('table')
   const row = document.createElement('tr')
   if (className) row.className = className
-  for (const entry of values) {
+  values.forEach((entry, index) => {
     const cell = document.createElement('td')
     if (entry && typeof entry === 'object') {
       cell.colSpan = entry.colSpan || 1
@@ -908,13 +935,94 @@ function addReportRow(tbody, values, className = '') {
     } else {
       cell.textContent = String(entry ?? '')
     }
+    if (
+      index === 4 &&
+      !table?.classList.contains('inventory-ledger') &&
+      !(entry && typeof entry === 'object') &&
+      Array.from(cell.textContent).length > 20
+    ) {
+      cell.textContent = wrapReportText(cell.textContent)
+      cell.classList.add('wrapped-report-description')
+    }
     if (cell.textContent.length > 10) cell.classList.add('long-report-cell')
     row.append(cell)
-  }
+  })
   tbody.append(row)
 }
 
-function renderInventoryReport(movements, fromDate, contractFilter) {
+let inventoryReportPage = 1
+let inventoryReportPageSize = 10
+
+function updateInventoryReportPagination() {
+  const table = activeReportTable()
+  const rows = [...(table?.tBodies[0]?.rows || [])]
+  const query = document
+    .querySelector('#inventorySearch')
+    .value.trim().toLocaleLowerCase('vi')
+  const itemRows = new Map()
+  for (const row of rows) {
+    const itemIndex = row.dataset.reportProductIndex
+    if (itemIndex === undefined) continue
+    if (!itemRows.has(itemIndex)) itemRows.set(itemIndex, [])
+    itemRows.get(itemIndex).push(row)
+  }
+
+  const visibleItems = [...itemRows.entries()]
+    .filter(([, groupedRows]) =>
+      !query || groupedRows.some(row => row.textContent.toLocaleLowerCase('vi').includes(query))
+    )
+    .map(([itemIndex]) => itemIndex)
+  const pageCount = Math.max(1, Math.ceil(visibleItems.length / inventoryReportPageSize))
+  inventoryReportPage = Math.min(inventoryReportPage, pageCount)
+  const pageStart = (inventoryReportPage - 1) * inventoryReportPageSize
+  const pageItems = new Set(visibleItems.slice(pageStart, pageStart + inventoryReportPageSize))
+  for (const [itemIndex, groupedRows] of itemRows) {
+    for (const row of groupedRows) row.hidden = !pageItems.has(itemIndex)
+  }
+
+  const firstItem = visibleItems.length ? pageStart + 1 : 0
+  const lastItem = Math.min(pageStart + inventoryReportPageSize, visibleItems.length)
+  document.querySelector('#inventoryReportCount').textContent =
+    `Hiển thị ${firstItem}-${lastItem} / ${visibleItems.length} mặt hàng`
+
+  const buttonContainer = document.querySelector('#inventoryReportPageButtons')
+  buttonContainer.replaceChildren()
+  const makeButton = (label, page, { disabled = false, active = false, ariaLabel = '' } = {}) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.textContent = label
+    button.disabled = disabled
+    button.classList.toggle('is-active', active)
+    if (ariaLabel) button.setAttribute('aria-label', ariaLabel)
+    button.addEventListener('click', () => {
+      inventoryReportPage = page
+      updateInventoryReportPagination()
+    })
+    buttonContainer.append(button)
+  }
+  makeButton('‹ Trước', Math.max(1, inventoryReportPage - 1), {
+    disabled: inventoryReportPage <= 1 || visibleItems.length === 0,
+    ariaLabel: 'Trang trước',
+  })
+  const windowStart = Math.max(1, Math.min(inventoryReportPage - 2, pageCount - 4))
+  const windowEnd = Math.min(pageCount, windowStart + 4)
+  for (let page = windowStart; page <= windowEnd; page += 1) {
+    makeButton(String(page), page, { active: page === inventoryReportPage })
+  }
+  makeButton('Sau ›', Math.min(pageCount, inventoryReportPage + 1), {
+    disabled: inventoryReportPage >= pageCount || visibleItems.length === 0,
+    ariaLabel: 'Trang sau',
+  })
+}
+
+document.querySelector('#inventoryReportPageSize').addEventListener('change', event => {
+  inventoryReportPageSize = Number(event.target.value) || 10
+  inventoryReportPage = 1
+  updateInventoryReportPagination()
+})
+
+function renderInventoryReport(movements, fromDate, contractFilter, detailView) {
+  document.querySelector('#reportResults').classList.toggle('detail-view', detailView)
   const products = new Map()
   for (const movement of movements) {
     const itemCode = String(movement.itemCode || '').trim()
@@ -931,6 +1039,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
         unit: movement.unit || '',
         openingQty: 0,
         openingAmount: 0,
+        hasOpeningBalance: false,
         receiptQty: 0,
         receiptAmount: 0,
         issueQty: 0,
@@ -961,6 +1070,10 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
     }
   }
 
+  for (const product of products.values()) {
+    product.hasOpeningBalance = product.openingQty !== 0
+  }
+
   const productRows = [...products.values()].sort((left, right) =>
     left.warehouseCode.localeCompare(right.warehouseCode, 'vi', { numeric: true }) ||
     left.itemCode.localeCompare(right.itemCode, 'vi', { numeric: true }) ||
@@ -978,12 +1091,15 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   if (!productRows.length) {
     addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 18 }])
     addReportRow(detailBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 10 }])
+    inventoryReportPage = 1
+    updateInventoryReportPagination()
     return
   }
 
   const totals = {
     openingQty: 0,
     openingAmount: 0,
+    hasOpeningBalance: false,
     receiptQty: 0,
     receiptAmount: 0,
     issueQty: 0,
@@ -1004,11 +1120,14 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
   )
 
   productRows.forEach((product, index) => {
+    const summaryStart = summaryBody.rows.length
+    const detailStart = detailBody.rows.length
     const endingQty = product.openingQty + product.receiptQty - product.issueQty
     const endingAmount =
       product.openingAmount + product.receiptAmount - product.issueAmount
     totals.openingQty += product.openingQty
     totals.openingAmount += product.openingAmount
+    totals.hasOpeningBalance ||= product.hasOpeningBalance
     totals.receiptQty += product.receiptQty
     totals.receiptAmount += product.receiptAmount
     totals.issueQty += product.issueQty
@@ -1024,10 +1143,12 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
       product.color,
       product.unit,
       reportNumber(product.openingQty),
-      reportNumber(
-        product.openingQty ? product.openingAmount / product.openingQty : 0
-      ),
-      reportNumber(product.openingAmount),
+      product.hasOpeningBalance
+        ? reportNumber(
+            product.openingQty ? product.openingAmount / product.openingQty : 0
+          )
+        : '',
+      product.hasOpeningBalance ? reportNumber(product.openingAmount) : '',
       reportNumber(product.receiptQty),
       reportNumber(
         product.receiptQty ? product.receiptAmount / product.receiptQty : 0
@@ -1069,12 +1190,16 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
       const isReceipt = movement.movementType === 'in'
       const quantity = Number(movement.quantity) || 0
       runningBalance += isReceipt ? quantity : -quantity
+      const description = [
+        movement.description,
+        movement.customerName && `Đối tượng: ${movement.customerName}`,
+      ].filter(Boolean).join(' · ')
       addReportRow(detailBody, [
         lineNumber++,
         reportDate(movement.movementDate),
         isReceipt ? movement.voucherNo : '',
         isReceipt ? '' : movement.voucherNo,
-        movement.description || '',
+        description,
         reportDate(movement.movementDate),
         isReceipt ? reportNumber(quantity) : '',
         isReceipt ? '' : reportNumber(quantity),
@@ -1093,6 +1218,12 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
       ],
       'subtotal-row'
     )
+    for (const row of [...summaryBody.rows].slice(summaryStart)) {
+      row.dataset.reportProductIndex = String(index)
+    }
+    for (const row of [...detailBody.rows].slice(detailStart)) {
+      row.dataset.reportProductIndex = String(index)
+    }
   })
 
   addReportRow(
@@ -1101,7 +1232,7 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
       { value: 'Cộng', colSpan: 6 },
       reportNumber(totals.openingQty),
       '',
-      reportNumber(totals.openingAmount),
+      totals.hasOpeningBalance ? reportNumber(totals.openingAmount) : '',
       reportNumber(totals.receiptQty),
       '',
       reportNumber(totals.receiptAmount),
@@ -1114,6 +1245,8 @@ function renderInventoryReport(movements, fromDate, contractFilter) {
     ],
     'subtotal-row'
   )
+  inventoryReportPage = 1
+  updateInventoryReportPagination()
 }
 
 async function showInventoryReport(detail = false) {
@@ -1125,10 +1258,11 @@ async function showInventoryReport(detail = false) {
     return false
   }
   const category = form.get('goodsCategory')
+  const movementCategory = form.get('movementCategory') || 'all'
   const warehouse = form.get('warehouse') || ''
-  const requestWarehouse =
-    currentUser?.role === 'warehouse' ? warehouse : ''
+  const requestWarehouse = warehouse
   const contract = form.get('contract')
+  const voucherType = form.get('voucherType') || ''
   const customer = form.get('customer')?.trim() || ''
   const color = form.get('color')?.trim() || ''
   const productCode = form.get('productCode')?.trim() || ''
@@ -1138,9 +1272,11 @@ async function showInventoryReport(detail = false) {
     warehouse: requestWarehouse || '',
     productCode,
     contract: contract || '',
+    voucherType,
     customer,
     color,
     category: category || '',
+    movementCategory,
   })
   const actionButton = document.querySelector(
     detail ? '#detailReportBtn' : '#stockReportForm button[type="submit"]'
@@ -1153,25 +1289,8 @@ async function showInventoryReport(detail = false) {
     const result = await readApiJson(response, 'tải báo cáo nhập xuất tồn')
     if (!response.ok || !result.success)
       throw new Error(result.error || 'Không tải được dữ liệu báo cáo.')
-    let movements = result.data.movements || []
-    if (currentUser?.role === 'admin' && warehouse) {
-      const selectedSite = warehouseSites.find(
-        site =>
-          site.siteCode.toLocaleUpperCase('vi') ===
-          String(warehouse).trim().toLocaleUpperCase('vi')
-      )
-      const allowedWarehouses = new Set(
-        [warehouse, ...(selectedSite?.linkedStores || [])].map(code =>
-          String(code).trim().toLocaleUpperCase('vi')
-        )
-      )
-      movements = movements.filter(movement =>
-        allowedWarehouses.has(
-          String(movement.warehouseCode || '').trim().toLocaleUpperCase('vi')
-        )
-      )
-    }
-    renderInventoryReport(movements, from, contract)
+   const movements = result.data.movements || []
+    renderInventoryReport(movements, from, contract, detail)
   } catch (error) {
     notify(apiErrorMessage(error, 'Không tải được dữ liệu báo cáo.'))
     return false
@@ -1181,6 +1300,34 @@ async function showInventoryReport(detail = false) {
   }
   const displayDate = value =>
     value ? new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN') : ''
+  const movementCategoryLabel = {
+    all: 'Tất cả danh mục',
+    in: 'Phiếu nhập',
+    out: 'Phiếu xuất',
+  }[movementCategory] || 'Tất cả danh mục'
+  const voucherTypeLabel = voucherType === 'Xuất bán' ? 'Xuất trả NCC' : voucherType
+  const goodsCategoryLabel = {
+    'Xuất tất cả': 'Tất cả',
+    'Nguyên liệu': 'Nguyên liệu',
+    'Phụ liệu': 'Phụ liệu',
+    'Thành phẩm': 'Thành phẩm',
+    'Công cụ dụng cụ': 'Công cụ dụng cụ',
+    'Hàng mẫu': 'Hàng mẫu',
+  }[category] || 'Tất cả'
+  const filterSummary = [
+    `Danh mục: ${movementCategoryLabel}`,
+    `Loại hàng hóa: ${goodsCategoryLabel}`,
+    `Loại phiếu: ${voucherTypeLabel || 'Tất cả'}`,
+    `Từ ngày: ${displayDate(from) || 'Tất cả'}`,
+    `Đến ngày: ${displayDate(to) || 'Tất cả'}`,
+    `Mã kho: ${warehouse || 'Tất cả'}`,
+    `Khách hàng: ${customer || 'Tất cả'}`,
+    `Màu: ${color || 'Tất cả'}`,
+    `Mã SP: ${productCode || 'Tất cả'}`,
+    `Hợp đồng: ${contract || 'Tất cả'}`,
+  ].join('　|　')
+  document.querySelector('#paperFilterSummary').textContent =
+    `Điều kiện lọc: ${filterSummary}`
   document.querySelector('#paperFrom').textContent = displayDate(from)
   document.querySelector('#paperTo').textContent = displayDate(to)
   document.querySelector('#paperWarehouseName').textContent =
@@ -1188,7 +1335,7 @@ async function showInventoryReport(detail = false) {
   document.querySelector('#paperWarehouseCode').textContent = warehouse || 'Tất cả kho'
   document.querySelector('#paperContract').textContent = contract || 'Tất cả hợp đồng'
   document.querySelector('#paperFormCode').textContent =
-    `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${category}${customer ? ` · Khách hàng: ${customer}` : ''}${productCode ? ` · Mã SP: ${productCode}` : ''}${color ? ` · Màu: ${color}` : ''}`
+    `${detail ? 'Báo cáo chi tiết' : 'Báo cáo nhập xuất tồn'} · ${movementCategoryLabel}`
   document.querySelector('.paper-title').textContent = detail
     ? 'THẺ KHO CHI TIẾT'
     : 'BÁO CÁO NHẬP XUẤT TỒN'
@@ -1214,6 +1361,29 @@ document.querySelector('#stockReportForm').addEventListener('submit', event => {
   event.preventDefault()
   showInventoryReport(false)
 })
+const reportFilterForm = document.querySelector('#stockReportForm')
+const reportVoucherType = reportFilterForm.querySelector('select[name="voucherType"]')
+const receiptTypeValues = new Set([
+  'Nhập mua hàng',
+  'Nhập khác',
+])
+const issueTypeValues = new Set([
+  'Thành phẩm sản xuất',
+  'Sản xuất',
+  'Xuất bán',
+  'Xuất khác',
+])
+reportVoucherType.addEventListener('change', () => {
+  const value = reportVoucherType.value
+  const movementValue = receiptTypeValues.has(value)
+    ? 'in'
+    : issueTypeValues.has(value)
+      ? 'out'
+      : 'all'
+  reportFilterForm.querySelector(
+    `input[name="movementCategory"][value="${movementValue}"]`
+  ).checked = true
+})
 document
   .querySelector('#detailReportBtn')
   .addEventListener('click', () => showInventoryReport(true))
@@ -1230,6 +1400,14 @@ document.querySelector('#closeReport').addEventListener('click', () => {
 document
   .querySelector('#printInventory')
   .addEventListener('click', () => window.print())
+window.addEventListener('beforeprint', () => {
+  document
+    .querySelectorAll('#reportResults [data-report-product-index]')
+    .forEach(row => {
+      row.hidden = false
+    })
+})
+window.addEventListener('afterprint', () => updateInventoryReportPagination())
 document.querySelector('#firstReportPage').disabled = true
 document.querySelector('#previousReportPage').disabled = true
 document.querySelector('#nextReportPage').disabled = true
@@ -1250,11 +1428,8 @@ document.querySelector('#refreshInventory').addEventListener('click', () => {
   document.querySelector('#inventorySearch').value = ''
   document.querySelector('#reportZoom').value = '100'
   document.querySelector('.report-paper').style.zoom = '1'
-  activeReportTable()
-    .querySelectorAll('tbody tr')
-    .forEach(row => {
-      row.hidden = false
-    })
+  inventoryReportPage = 1
+  updateInventoryReportPagination()
   notify('Báo cáo đã được làm mới.')
 })
 document.querySelector('#editReportFilters').addEventListener('click', () => {
@@ -1267,14 +1442,8 @@ document.querySelector('#editReportFilters').addEventListener('click', () => {
     .scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
 document.querySelector('#inventorySearch').addEventListener('input', event => {
-  const query = event.target.value.trim().toLocaleLowerCase('vi')
-  activeReportTable()
-    .querySelectorAll('tbody tr')
-    .forEach(row => {
-      row.hidden =
-        Boolean(query) &&
-        !row.textContent.toLocaleLowerCase('vi').includes(query)
-    })
+  inventoryReportPage = 1
+  updateInventoryReportPagination()
 })
 document.querySelector('#reportZoom').addEventListener('change', event => {
   document.querySelector('.report-paper').style.zoom =
@@ -1660,10 +1829,10 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     `<tr>${cell(title, { colSpan: 8, className: 'title' })}</tr>`,
     `<tr>${cell('', { colSpan: 2 })}${cell(printVoucherDate(voucherDate, true), { colSpan: 4, className: 'center' })}${cell(`Nợ: ${accounts(accountColumns.debit)}`, { colSpan: 2 })}</tr>`,
     `<tr>${cell('', { colSpan: 2 })}${cell(`Số: ${value('voucherNo')}`, { colSpan: 4, className: 'center' })}${cell(`Có: ${accounts(accountColumns.credit)}`, { colSpan: 2 })}</tr>`,
-    `<tr>${cell('', { colSpan: 2 })}${cell('Liên 1: Lưu thanh toán', { colSpan: 4, className: 'center' })}${cell(`Tờ khai: ${customsText} · Hóa đơn: ${invoiceText}`, { colSpan: 2 })}</tr>`,
+    `<tr>${cell('', { colSpan: 2 })}${cell('Liên 1: Lưu thanh toán', { colSpan: 4, className: 'center' })}${cell('', { colSpan: 2 })}</tr>`,
     `<tr>${cell(`${partnerLabel} ${value('senderName')}`, { colSpan: 8, className: 'left' })}</tr>`,
     `<tr>${cell(`Địa chỉ: ${value('senderAddress')}`, { colSpan: 8, className: 'left' })}</tr>`,
-    `<tr>${cell(`Theo chứng từ: ${contractText}`, { colSpan: 8, className: 'left' })}</tr>`,
+     `<tr>${cell(`Theo chứng từ: ${customsText ? `Tờ khai: ${customsText}` : ''}${invoiceText ? ` · Hóa đơn: ${invoiceText}` : ''}${contractText ? ` · Hợp đồng: ${contractText}` : ''}`, { colSpan: 8, className: 'left' })}</tr>`,
     `<tr>${cell(`Lý do ${isIssue ? 'xuất' : 'nhập'} kho: ${value('receiptDescription')} · Người vận chuyển: ${value('transporterName')}`, { colSpan: 8, className: 'left' })}</tr>`,
     `<tr>${cell(`${warehouseLabel} ${warehouse}`, { colSpan: 4, className: 'left' })}${cell(`Địa điểm: ${value('senderAddress')}`, { colSpan: 4, className: 'left' })}</tr>`,
     `<tr class="table-head">${cell('STT', { tag: 'th', rowSpan: 2 })}${cell('Tên nhãn hiệu, quy cách phẩm chất vật tư, dụng cụ, sản phẩm, hàng hóa', { tag: 'th', rowSpan: 2 })}${cell('Mã số', { tag: 'th', rowSpan: 2 })}${cell('Đơn vị tính', { tag: 'th', rowSpan: 2 })}${cell('Số lượng', { tag: 'th', colSpan: 2 })}${cell(`Đơn giá (${currency})`, { tag: 'th', rowSpan: 2 })}${cell(`Thành tiền (${currency})`, { tag: 'th', rowSpan: 2 })}</tr>`,
@@ -1958,7 +2127,15 @@ function loadVoucher(record) {
 function loadReceiptVoucher(record) {
   const set = (id, value) => {
     const control = document.getElementById(id)
-    if (control) control.value = value ?? ''
+    if (!control) return
+    if (
+      id === 'goodsType' &&
+      value === 'Sản phẩm' &&
+      !Array.from(control.options).some(option => option.value === value)
+    ) {
+      control.add(new Option('Sản phẩm (dữ liệu cũ)', value))
+    }
+    control.value = value ?? ''
   }
   set('senderName', record.delivererName)
   set('senderAddress', record.address)
@@ -2138,7 +2315,15 @@ async function searchDatabaseIssues(query) {
 function loadIssueVoucher(record) {
   const set = (id, value) => {
     const control = document.getElementById(id)
-    if (control) control.value = value ?? ''
+    if (!control) return
+    if (
+      id === 'goodsType' &&
+      value === 'Sản phẩm' &&
+      !Array.from(control.options).some(option => option.value === value)
+    ) {
+      control.add(new Option('Sản phẩm (dữ liệu cũ)', value))
+    }
+    control.value = value ?? ''
   }
   set('senderName', record.receiverName)
   set('senderAddress', record.address)
@@ -2328,10 +2513,14 @@ document.querySelector('#reopenVoucher').addEventListener('click', () => {
   document.querySelector('.tabs').classList.remove('hidden')
   document.querySelector('#closedState').classList.add('hidden')
 })
-changePage('in')
+const requestedPage = new URLSearchParams(window.location.search).get('page')
+changePage(['in', 'out', 'report'].includes(requestedPage) ? requestedPage : 'in')
 document.querySelector('#helpLink').addEventListener('click', event => {
   event.preventDefault()
-  notify('F5: copy dòng · F8: xóa dòng · F11: xóa tất cả.')
+  notify(
+    'Phím tắt: F5 sao chép dòng · F6 nhập Excel · F8 xóa dòng · F9 chọn hàng · F11 xóa toàn bộ dòng hàng.',
+    5000
+  )
 })
 const createWarehouseUserDialog = document.querySelector(
   '#createWarehouseUserDialog'
@@ -2371,7 +2560,26 @@ function renderUserWarehouseCheckboxes() {
     empty.textContent = 'Chưa tải được danh sách kho liên kết.'
     container.append(empty)
   }
+  syncSelectAllWarehouseCodes()
 }
+
+function syncSelectAllWarehouseCodes() {
+  const selectAll = document.querySelector('#selectAllWarehouseCodes')
+  const checkboxes = [...document.querySelectorAll('#newUserWarehouses input[name="warehouseCodes"]')]
+  const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length
+  selectAll.disabled = checkboxes.length === 0
+  selectAll.checked = checkboxes.length > 0 && selectedCount === checkboxes.length
+  selectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length
+}
+
+document.querySelector('#selectAllWarehouseCodes').addEventListener('change', event => {
+  document.querySelectorAll('#newUserWarehouses input[name="warehouseCodes"]')
+    .forEach(checkbox => { checkbox.checked = event.currentTarget.checked })
+  syncSelectAllWarehouseCodes()
+})
+document.querySelector('#newUserWarehouses').addEventListener('change', event => {
+  if (event.target.matches('input[name="warehouseCodes"]')) syncSelectAllWarehouseCodes()
+})
 
 async function loadWarehouseUsersForPasswordReset() {
   const select = document.querySelector('#existingWarehouseUser')
@@ -2402,6 +2610,82 @@ document.querySelector('#userManagementBtn').addEventListener('click', async () 
     }
   createWarehouseUserDialog.showModal()
 })
+
+const loginHistoryDialog = document.querySelector('#loginHistoryDialog')
+const loginHistoryRows = document.querySelector('#loginHistoryRows')
+async function loadLoginHistory() {
+  const message = document.querySelector('#loginHistoryMessage')
+  const refreshButton = document.querySelector('#refreshLoginHistory')
+  refreshButton.disabled = true
+  message.textContent = ''
+  loginHistoryRows.replaceChildren(Object.assign(document.createElement('tr'), {
+    innerHTML: '<td colspan="5">Đang tải lịch sử...</td>',
+  }))
+  try {
+    const response = await fetch(apiUrl('/api/admin/login-history'))
+    const result = await readApiJson(response, 'tải lịch sử đăng nhập')
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không thể tải lịch sử đăng nhập.')
+    loginHistoryRows.replaceChildren()
+    if (!result.data.length) {
+      const row = document.createElement('tr')
+      const cell = document.createElement('td')
+      cell.colSpan = 5
+      cell.textContent = 'Chưa có lịch sử đăng nhập.'
+      row.append(cell)
+      loginHistoryRows.append(row)
+      return
+    }
+    for (const entry of result.data) {
+      const row = document.createElement('tr')
+      const rawDate = String(entry.createdAt || '').replace(' ', 'T') + 'Z'
+      const date = new Date(rawDate)
+      const values = [
+        Number.isNaN(date.getTime()) ? entry.createdAt : date.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+        entry.username,
+        entry.role === 'admin' ? 'Quản trị' : entry.role === 'warehouse' ? 'Kho' : 'Không xác định',
+        entry.result === 'success' ? 'Thành công' : 'Thất bại',
+        entry.ipAddress || '—',
+      ]
+      values.forEach((value, index) => {
+        const cell = document.createElement('td')
+        cell.textContent = String(value ?? '—')
+        if (index === 3) cell.className = entry.result === 'success' ? 'login-success' : 'login-failure'
+        row.append(cell)
+      })
+      loginHistoryRows.append(row)
+    }
+  } catch (error) {
+    loginHistoryRows.replaceChildren()
+    message.textContent = apiErrorMessage(error, 'Không thể tải lịch sử đăng nhập.')
+  } finally {
+    refreshButton.disabled = false
+  }
+}
+document.querySelector('#adminLoginHistoryBtn').addEventListener('click', async () => {
+  loginHistoryDialog.showModal()
+  await loadLoginHistory()
+})
+document.querySelector('#refreshLoginHistory').addEventListener('click', loadLoginHistory)
+document.querySelector('#clearLoginHistory').addEventListener('click', async event => {
+  if (!window.confirm('Bạn có chắc muốn xóa toàn bộ lịch sử đăng nhập? Dữ liệu đã xóa không thể khôi phục.')) return
+  const button = event.currentTarget
+  const message = document.querySelector('#loginHistoryMessage')
+  button.disabled = true
+  message.textContent = ''
+  try {
+    const response = await fetch(apiUrl('/api/admin/login-history/clear'), { method: 'POST' })
+    const result = await readApiJson(response, 'xóa lịch sử đăng nhập')
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không thể xóa lịch sử đăng nhập.')
+    await loadLoginHistory()
+    message.textContent = `Đã xóa ${result.data.deletedCount} bản ghi lịch sử đăng nhập.`
+  } catch (error) {
+    message.textContent = apiErrorMessage(error, 'Không thể xóa lịch sử đăng nhập.')
+  } finally {
+    button.disabled = false
+  }
+})
+document.querySelector('#closeLoginHistory').addEventListener('click', () => loginHistoryDialog.close())
+document.querySelector('#dismissLoginHistory').addEventListener('click', () => loginHistoryDialog.close())
 document
   .querySelector('#closeCreateUserDialog')
   .addEventListener('click', () => createWarehouseUserDialog.close())
@@ -2493,10 +2777,12 @@ async function initializeUserAccess() {
     userLabel.hidden = false
     if (currentUser.role === 'admin') {
       document.querySelector('#userManagementBtn').hidden = false
+      document.querySelector('#adminLoginHistoryBtn').hidden = false
       return
     }
 
     document.querySelector('#userManagementBtn').hidden = true
+    document.querySelector('#adminLoginHistoryBtn').hidden = true
     applyWarehouseRestrictions()
   } catch {
     window.location.replace('/admin')

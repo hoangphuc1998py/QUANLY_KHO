@@ -4,9 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>QUẢN LÝ KHO IT-ANHUCO</title>
-    <link rel="icon" type="image/png" href="/favicon.png?v=3" />
-    <link rel="stylesheet" href="index.css" />
-  </head>
+    <link rel="stylesheet" href="index.css" />  
+   </head>
   <body>
     <main class="app-window" aria-label="Phiếu nhập kho kế toán">
       <header class="titlebar">
@@ -28,13 +27,18 @@
         <!-- <button type="button" id="userManagementBtn" hidden>Tạo user</button>
         <button type="button" id="changePasswordBtn">Đổi mật khẩu</button>
         <button type="button" id="logoutBtn">Đăng xuất</button> -->
-        
         <button type="button" id="userManagementBtn" hidden>
   <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="9" cy="7" r="3.5"/>
     <path d="M3 20v-1a6 6 0 0 1 12 0v1M19 8v8M15 12h8"/>
   </svg>
   Tạo user
+</button>
+<button type="button" id="adminLoginHistoryBtn" hidden>
+  <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>
+  </svg>
+  Lịch sử đăng nhập
 </button>
 <button type="button" id="changePasswordBtn">
   <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -51,10 +55,11 @@
 </button>
       </div>
       <nav class="page-switcher" aria-label="Trang nghiệp vụ">
-        <button class="page-choice active" data-page="in">
-          ↓ Phiếu nhập kho</button
-        ><button class="page-choice" data-page="out">↑ Phiếu xuất kho</button
-        ><button class="page-choice" data-page="report">▤ Nhập xuất tồn</button>
+        <button class="page-choice active" data-page="in" title="Phiếu nhập kho" aria-label="Phiếu nhập kho">
+          Phiếu nhập kho</button
+        ><button class="page-choice" data-page="out" title="Phiếu xuất kho" aria-label="Phiếu xuất kho">Phiếu xuất kho</button
+        ><button class="page-choice" data-page="report" title="Nhập xuất tồn" aria-label="Nhập xuất tồn">Nhập xuất tồn</button
+        ><a class="page-choice transfer-tab-hidden" href="/transfer" title="Điều chuyển kho" aria-label="Điều chuyển kho">Điều chuyển kho</a>
       </nav>
       <nav class="tabs" aria-label="Thông tin phiếu">
         <button class="tab active" data-tab="general">Thông tin chung</button
@@ -224,7 +229,7 @@
                   <option>Nguyên liệu</option>
                   <option>Phụ liệu</option>
                   <option>Thành phẩm</option>
-                  <option value="Sản phẩm">Sản phẩm mẫu</option>
+                  <option>Hàng mẫu</option>
                   <option>Công cụ dụng cụ</option>
                 </select>
               </div></label
@@ -494,654 +499,7 @@
           <div><strong>Thủ trưởng đơn vị</strong><em>(Ký, họ tên)</em></div>
         </footer>
       </section>
-      <section
-        class="report-page hidden"
-        id="stockReportPage"
-        aria-labelledby="reportTitle">
-        <div class="report-heading">
-          <div>
-            <h1 id="reportTitle">Nhập xuất tồn (Gia công)</h1>
-            <p>Chọn điều kiện lọc để xem số liệu nhập, xuất và tồn kho.</p>
-          </div>
-        </div>
-        <form id="stockReportForm" class="report-card">
-          <fieldset class="report-filter">
-            <legend>Loại hàng hóa</legend>
-            <div class="radio-options">
-              <label
-                ><input
-                  type="radio"
-                  name="goodsCategory"
-                  value="Xuất tất cả" />Xuất tất cả</label
-              >
-              <label
-                ><input
-                  type="radio"
-                  name="goodsCategory"
-                  value="Nguyên liệu" />Nguyên liệu</label
-              >
-              <label
-                ><input
-                  type="radio"
-                  name="goodsCategory"
-                  value="Phụ liệu" />Phụ liệu</label
-              >
-              <label
-                ><input
-                  type="radio"
-                  name="goodsCategory"
-                  value="Sản phẩm"
-                  checked />Sản phẩm mẫu</label
-              >
-              <label
-                ><input
-                  type="radio"
-                  name="goodsCategory"
-                  value="Thiết bị" />Thiết bị</label
-              >
-              <label
-                ><input
-                  type="radio"
-                  name="goodsCategory"
-                  value="Hàng mẫu" />Hàng mẫu</label
-              >
-            </div>
-          </fieldset>
-          <fieldset class="report-filter">
-            <legend>Điều kiện lọc</legend>
-            <div class="report-fields">
-              <label class="report-field"
-                ><span>Từ ngày</span
-                ><input type="date" name="fromDate"
-              /></label>
-              <label class="report-field"
-                ><span>Đến ngày</span
-                ><input type="date" name="toDate"
-              /></label>
-              <label class="report-field"
-                ><span>Mã kho</span
-                ><select name="warehouse">
-                  <option value="">Chọn kho</option>
-                  <option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option>
-                  <option value="KHO AN HUNG">KHO AN HUNG</option>
-                  <option value="KHO AN THINH">KHO AN THINH</option>
-                  <option value="KHO AN PHU">KHO AN PHU</option>
-                  <option value="KHO AN PHAT">KHO AN PHAT</option>
-                  <option value="KHO VESTON">KHO VESTON</option>
-                </select></label
-              >
-              <label class="report-field"
-                ><span>Khách hàng</span><input type="text" name="customer"
-              /></label>
-              <label class="report-field"
-                ><span>Màu</span><input type="text" name="color" placeholder="Nhập màu"
-              /></label>
-              <label class="report-field"
-                ><span>Mã SP</span
-                ><input
-                  type="text"
-                  name="productCode"
-                  placeholder="Nhập mã sản phẩm"
-              /></label>
-              <label class="report-field"
-                ><span>Hợp đồng</span
-                ><input type="text" name="contract" placeholder="Nhập hợp đồng" /></label
-              >
-            </div>
-          </fieldset>
-          <label class="report-currency"
-            ><input type="checkbox" name="foreignCurrency" /> In trị giá theo tỉ
-            giá nguyên tệ</label
-          >
-          <div class="report-actions">
-            <button type="submit" class="primary-action">
-              ⌕ Xem báo cáo tổng hợp</button
-            ><button
-              type="button"
-              class="secondary-action"
-              id="detailReportBtn">
-              ▤ Báo cáo chi tiết</button
-            ><button type="button" class="secondary-action" id="closeReport">
-              ◉ Đóng
-            </button>
-          </div>
-        </form>
-        <section class="report-results hidden" id="reportResults">
-          <div class="report-viewer-toolbar">
-            <button
-              type="button"
-              id="exportInventoryCsv"
-              title="Export dữ liệu">
-              ⇩ Export dữ liệu
-            </button>
-            <button
-              type="button"
-              id="printInventory"
-              title="In báo cáo"
-              aria-label="In báo cáo">
-              <svg class="print-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z" />
-                <path d="M18 11h.01" />
-              </svg>
-            </button>
-            <button type="button" id="refreshInventory" title="Làm mới">
-              ⟳</button
-            ><span class="toolbar-divider"></span>
-            <button type="button" id="firstReportPage" title="Trang đầu">
-              |◀</button
-            ><button type="button" id="previousReportPage" title="Trang trước">
-              ◀</button
-            ><span class="page-indicator" id="reportPageIndicator">1 / 1</span
-            ><button type="button" id="nextReportPage" title="Trang sau">
-              ▶</button
-            ><button type="button" id="lastReportPage" title="Trang cuối">
-              ▶|
-            </button>
-            <button type="button" id="focusReportSearch" title="Tìm kiếm">
-              ⌕</button
-            ><label class="report-search"
-              ><input
-                id="inventorySearch"
-                type="search"
-                placeholder="Tìm kiếm" /></label
-            ><button type="button" id="editReportFilters" title="Điều kiện lọc">
-              ⚙
-            </button>
-            <label class="zoom-control" title="Chế độ thu phóng"
-              >Thu phóng
-              <select id="reportZoom">
-                <option value="100">100%</option>
-                <option value="90">90%</option>
-                <option value="80">80%</option>
-                <option value="110">110%</option>
-              </select></label
-            ><button
-              type="button"
-              id="closeReportViewer"
-              class="close-report-viewer"
-              title="Đóng báo cáo">
-              ✕
-            </button>
-          </div>
-          <article class="report-paper">
-            <header class="paper-top">
-              <div>
-                <strong>Đơn vị: Công ty Cổ Phần An Hưng</strong><br /><strong
-                  >Địa chỉ: Khu phố Đông Phước, phường Tuy Hòa, tỉnh Đắk
-                  Lắk</strong
-                >
-              </div>
-              <div class="paper-form">
-                <strong id="paperFormCode">Báo cáo nhập xuất tồn</strong>
-              </div>
-            </header>
-            <h2 class="paper-title">BÁO CÁO NHẬP XUẤT TỒN</h2>
-            <p class="paper-period">
-              Kỳ báo cáo: Từ ngày <span id="paperFrom">10/07/2019</span> đến
-              ngày <span id="paperTo">11/07/2019</span>
-            </p>
-            <p class="paper-warehouse">
-              <strong>Mã kho:</strong>
-              <span id="paperWarehouseCode">KHO-TP</span
-              ><span class="warehouse-name"
-                ><strong>Tên kho:</strong>
-                <span id="paperWarehouseName">Kho thành phẩm</span></span
-              ><span class="warehouse-name"
-                ><strong>Hợp đồng:</strong>
-                <span id="paperContract">HD01/2019-TSD</span></span
-              >
-            </p>
-            <div class="paper-table-wrap inventory-table">
-              <table
-                class="stock-ledger inventory-ledger"
-                aria-label="Báo cáo tổng hợp nhập xuất tồn">
-                <thead>
-                  <tr>
-                    <th rowspan="2">STT</th>
-                    <th rowspan="2">Mã kho</th>
-                    <th rowspan="2">Mã hàng</th>
-                    <th rowspan="2">Tên hàng</th>
-                    <th rowspan="2">Màu</th>
-                    <th rowspan="2">ĐVT</th>
-                    <th colspan="3">Tồn đầu kỳ</th>
-                    <th colspan="3">Nhập trong kỳ</th>
-                    <th colspan="3">Xuất trong kỳ</th>
-                    <th colspan="3">Tồn cuối kỳ</th>
-                  </tr>
-                  <tr>
-                    <th>Số lượng</th>
-                    <th>Đơn giá</th>
-                    <th>Thành tiền</th>
-                    <th>Số lượng</th>
-                    <th>Đơn giá</th>
-                    <th>Thành tiền</th>
-                    <th>Số lượng</th>
-                    <th>Đơn giá</th>
-                    <th>Thành tiền</th>
-                    <th>Số lượng</th>
-                    <th>Đơn giá</th>
-                    <th>Thành tiền</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>SP-KH00001</td>
-                    <td>Sản phẩm chi tiết theo kho</td>
-                    <td></td>
-                    <td>Cái</td>
-                    <td>500</td>
-                    <td>25.000</td>
-                    <td>12.500.000</td>
-                    <td>1.600</td>
-                    <td>25.000</td>
-                    <td>40.000.000</td>
-                    <td>240</td>
-                    <td>25.000</td>
-                    <td>6.000.000</td>
-                    <td>1.860</td>
-                    <td>25.000</td>
-                    <td>46.500.000</td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>SP-KH00002</td>
-                    <td>Sản phẩm chi tiết theo kho 02</td>
-                    <td></td>
-                    <td>Cái</td>
-                    <td>1.000</td>
-                    <td>18.000</td>
-                    <td>18.000.000</td>
-                    <td>15.490</td>
-                    <td>18.000</td>
-                    <td>278.820.000</td>
-                    <td>1.000</td>
-                    <td>18.000</td>
-                    <td>18.000.000</td>
-                    <td>15.490</td>
-                    <td>18.000</td>
-                    <td>278.820.000</td>
-                  </tr>
-                  <tr>
-                    <td>3</td>
-                    <td>SP-KH00003</td>
-                    <td>Sản phẩm chi tiết theo kho 03</td>
-                    <td>Cái</td>
-                    <td>644</td>
-                    <td>12.000</td>
-                    <td>7.728.000</td>
-                    <td>6.640</td>
-                    <td>12.000</td>
-                    <td>79.680.000</td>
-                    <td>644</td>
-                    <td>12.000</td>
-                    <td>7.728.000</td>
-                    <td>6.640</td>
-                    <td>12.000</td>
-                    <td>79.680.000</td>
-                  </tr>
-                  <tr>
-                    <td>4</td>
-                    <td>SP-KH00004</td>
-                    <td>Sản phẩm chi tiết theo kho 04</td>
-                    <td>Cái</td>
-                    <td>0</td>
-                    <td>30.000</td>
-                    <td>0</td>
-                    <td>44.970</td>
-                    <td>30.000</td>
-                    <td>1.349.100.000</td>
-                    <td>0</td>
-                    <td>30.000</td>
-                    <td>0</td>
-                    <td>44.970</td>
-                    <td>30.000</td>
-                    <td>1.349.100.000</td>
-                  </tr>
-                  <tr class="subtotal-row">
-                    <td colspan="5">Cộng</td>
-                    <td>2.144</td>
-                    <td></td>
-                    <td>38.228.000</td>
-                    <td>68.700</td>
-                    <td></td>
-                    <td>1.747.600.000</td>
-                    <td>1.884</td>
-                    <td></td>
-                    <td>31.728.000</td>
-                    <td>68.960</td>
-                    <td></td>
-                    <td>1.754.100.000</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="paper-table-wrap">
-              <table class="stock-ledger" aria-label="Bảng thẻ kho chi tiết">
-                <thead>
-                  <tr>
-                    <th rowspan="2">Số<br />TT</th>
-                    <th rowspan="2">Ngày, tháng</th>
-                    <th colspan="2">Số hiệu chứng từ</th>
-                    <th rowspan="2">Diễn giải</th>
-                    <th rowspan="2">Ngày nhập,<br />xuất</th>
-                    <th colspan="3">Số lượng</th>
-                    <th rowspan="2">Ký xác nhận của<br />kế toán</th>
-                  </tr>
-                  <tr>
-                    <th>Nhập</th>
-                    <th>Xuất</th>
-                    <th>Nhập</th>
-                    <th>Xuất</th>
-                    <th>Tồn</th>
-                  </tr>
-                  <tr class="column-letters">
-                    <th>A</th>
-                    <th>B</th>
-                    <th>C</th>
-                    <th>D</th>
-                    <th>E</th>
-                    <th>F</th>
-                    <th>1</th>
-                    <th>2</th>
-                    <th>3</th>
-                    <th>G</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr class="contract-row">
-                    <td colspan="10">
-                      <strong>Số hợp đồng: HD01/2019-TSD</strong>　Ngày hợp
-                      đồng: 7/3/2019　2:20:17PM
-                    </td>
-                  </tr>
-                  <tr class="product-row">
-                    <td colspan="10">
-                      <strong>Mã hàng: SP-KH00001</strong>　Tên hàng:
-                      <strong>Sản phẩm chi tiết theo kho</strong>
-                    </td>
-                  </tr>
-                  <tr class="opening-row">
-                    <td>1</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>(Số tồn đầu kỳ)</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>PX00001</td>
-                    <td></td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>120</td>
-                    <td>(120)</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>3</td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>PX00002</td>
-                    <td></td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>120</td>
-                    <td>(240)</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>4</td>
-                    <td>11/07/2019</td>
-                    <td>PN00002</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>1.500</td>
-                    <td></td>
-                    <td>1.260</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>5</td>
-                    <td>11/07/2019</td>
-                    <td>PN00003</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>100</td>
-                    <td></td>
-                    <td>1.360</td>
-                    <td></td>
-                  </tr>
-                  <tr class="subtotal-row">
-                    <td colspan="6">Cộng cuối kỳ</td>
-                    <td>1.600</td>
-                    <td>240</td>
-                    <td>1.360</td>
-                    <td></td>
-                  </tr>
-                  <tr class="product-row">
-                    <td colspan="10">
-                      <strong>Mã hàng: SP-KH00002</strong>　Tên hàng:
-                      <strong>Sản phẩm chi tiết theo kho 02</strong>
-                    </td>
-                  </tr>
-                  <tr class="opening-row">
-                    <td>6</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>(Số tồn đầu kỳ)</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>7</td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>PX00001</td>
-                    <td></td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>500</td>
-                    <td>(500)</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>8</td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>PX00002</td>
-                    <td></td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>500</td>
-                    <td>(1.000)</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>9</td>
-                    <td>11/07/2019</td>
-                    <td>PN00002</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>15.240</td>
-                    <td></td>
-                    <td>14.240</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>10</td>
-                    <td>11/07/2019</td>
-                    <td>PN00003</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>250</td>
-                    <td></td>
-                    <td>14.490</td>
-                    <td></td>
-                  </tr>
-                  <tr class="subtotal-row">
-                    <td colspan="6">Cộng cuối kỳ</td>
-                    <td>15.490</td>
-                    <td>1.000</td>
-                    <td>14.490</td>
-                    <td></td>
-                  </tr>
-                  <tr class="product-row">
-                    <td colspan="10">
-                      <strong>Mã hàng: SP-KH00003</strong>　Tên hàng:
-                      <strong>Sản phẩm chi tiết theo kho 03</strong>
-                    </td>
-                  </tr>
-                  <tr class="opening-row">
-                    <td>11</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>(Số tồn đầu kỳ)</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>12</td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>PX00001</td>
-                    <td></td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>322</td>
-                    <td>(322)</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>13</td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>PX00002</td>
-                    <td></td>
-                    <td>10/07/2019</td>
-                    <td></td>
-                    <td>322</td>
-                    <td>(644)</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>14</td>
-                    <td>11/07/2019</td>
-                    <td>PN00002</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>6.520</td>
-                    <td></td>
-                    <td>5.876</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>15</td>
-                    <td>11/07/2019</td>
-                    <td>PN00003</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>120</td>
-                    <td></td>
-                    <td>5.996</td>
-                    <td></td>
-                  </tr>
-                  <tr class="subtotal-row">
-                    <td colspan="6">Cộng cuối kỳ</td>
-                    <td>6.640</td>
-                    <td>644</td>
-                    <td>5.996</td>
-                    <td></td>
-                  </tr>
-                  <tr class="product-row">
-                    <td colspan="10">
-                      <strong>Mã hàng: SP-KH00004</strong>　Tên hàng:
-                      <strong>Sản phẩm chi tiết theo kho 04</strong>
-                    </td>
-                  </tr>
-                  <tr class="opening-row">
-                    <td>16</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>(Số tồn đầu kỳ)</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>17</td>
-                    <td>11/07/2019</td>
-                    <td>PN00002</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>44.520</td>
-                    <td></td>
-                    <td>44.520</td>
-                    <td></td>
-                  </tr>
-                  <tr>
-                    <td>18</td>
-                    <td>11/07/2019</td>
-                    <td>PN00003</td>
-                    <td></td>
-                    <td></td>
-                    <td>11/07/2019</td>
-                    <td>450</td>
-                    <td></td>
-                    <td>44.970</td>
-                    <td></td>
-                  </tr>
-                  <tr class="subtotal-row">
-                    <td colspan="6">Cộng cuối kỳ</td>
-                    <td>44.970</td>
-                    <td></td>
-                    <td>44.970</td>
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p class="paper-footnote">
-              - Sổ này có 1 trang, đánh số từ trang 1 đến trang 1.<br />- Ngày
-              mở sổ: ....................
-            </p>
-            <div class="paper-date">Ngày 11 tháng 07 năm 2019</div>
-            <footer class="paper-signatures">
-              <div><strong>Người ghi sổ</strong><em>(Ký, họ tên)</em></div>
-              <div><strong>Kế toán trưởng</strong><em>(Ký, họ tên)</em></div>
-              <div>
-                <strong>Giám đốc</strong><em>(Ký, họ tên, đóng dấu)</em>
-              </div>
-            </footer>
-          </article>
-        </section>
-      </section>
+      
         </div>
 
         <dialog id="currencyRatesDialog" class="currency-rates-dialog" aria-labelledby="currencyRatesTitle">
@@ -1171,26 +529,35 @@
     </section>
     <section class="report-page hidden" id="stockReportPage" aria-labelledby="reportTitle">
       <div class="report-heading"><div><h1 id="reportTitle">Nhập xuất tồn (Gia công)</h1><p>Chọn điều kiện lọc để xem số liệu nhập, xuất và tồn kho.</p></div></div>
-      <form id="stockReportForm" class="report-card">
+      <form id="stockReportForm" class="report-filter-form">
+        <fieldset class="report-filter"><legend>Danh mục</legend><div class="radio-options">
+          <label><input type="radio" name="movementCategory" value="all" checked>Tất cả (phiếu nhập + phiếu xuất)</label>
+          <label><input type="radio" name="movementCategory" value="in">Phiếu nhập (chỉ phiếu nhập)</label>
+          <label><input type="radio" name="movementCategory" value="out">Phiếu xuất (chỉ phiếu xuất)</label>
+        </div></fieldset>
+        <div class="report-card">
         <fieldset class="report-filter"><legend>Loại hàng hóa</legend><div class="radio-options">
           <label><input type="radio" name="goodsCategory" value="Xuất tất cả">Xuất tất cả</label>
           <label><input type="radio" name="goodsCategory" value="Nguyên liệu">Nguyên liệu</label>
           <label><input type="radio" name="goodsCategory" value="Phụ liệu">Phụ liệu</label>
-          <label><input type="radio" name="goodsCategory" value="Sản phẩm" checked>Sản phẩm mẫu</label>
-          <label><input type="radio" name="goodsCategory" value="Thiết bị">Thiết bị</label>
+          <label><input type="radio" name="goodsCategory" value="Thành phẩm" checked>Thành phẩm</label>
+          <!-- <label><input type="radio" name="goodsCategory" value="Thiết bị">Thiết bị</label> -->
+          <label><input type="radio" name="goodsCategory" value="Công cụ dụng cụ">Công cụ dụng cụ</label>
           <label><input type="radio" name="goodsCategory" value="Hàng mẫu">Hàng mẫu</label>
         </div></fieldset>
         <fieldset class="report-filter"><legend>Điều kiện lọc</legend><div class="report-fields">
           <label class="report-field"><span>Từ ngày</span><input type="date" name="fromDate"></label>
-          <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate"></label>
-          <label class="report-field"><span>Mã kho</span><select name="warehouse"><option value="">Chọn kho</option><option value="KHO TONG CONG CTY">KHO TONG CONG CTY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></label>
-          <label class="report-field"><span>Khách hàng</span><input type="text" name="customer"></label>
+            <label class="report-field"><span>Đến ngày</span><input type="date" name="toDate"></label>
+          <label class="report-field"><span>Mã kho</span><select name="warehouse"><option value="">Chọn kho</option><option value="KHO TONG CONG TY">KHO TONG CONG TY</option><option value="KHO AN HUNG">KHO AN HUNG</option><option value="KHO AN THINH">KHO AN THINH</option><option value="KHO AN PHU">KHO AN PHU</option><option value="KHO AN PHAT">KHO AN PHAT</option><option value="KHO VESTON">KHO VESTON</option></select></label>
+          <label class="report-field"><span>Loại phiếu</span><select name="voucherType"><option value="">Tất cả</option><option value="Thành phẩm sản xuất">Thành phẩm sản xuất</option><option value="Nhập mua hàng">Nhập mua hàng</option><option value="Nhập khác">Nhập khác</option><option value="Sản xuất">Sản xuất</option><option value="Xuất bán">Xuất trả NCC</option><option value="Xuất khác">Xuất khác</option><option value="Điều chuyển kho">Điều chuyển kho</option></select></label>
           <label class="report-field"><span>Màu</span><input type="text" name="color" placeholder="Nhập màu"></label>
           <label class="report-field"><span>Mã SP</span><input type="text" name="productCode" placeholder="Nhập mã sản phẩm"></label>
           <label class="report-field"><span>Hợp đồng</span><input type="text" name="contract" placeholder="Nhập hợp đồng"></label>
+          <label class="report-field"><span>Khách hàng</span><input type="text" name="customer"></label>
         </div></fieldset>
         <label class="report-currency"><input type="checkbox" name="foreignCurrency"> In trị giá theo tỉ giá nguyên tệ</label>
         <div class="report-actions"><button type="submit" class="primary-action">⌕ Xem báo cáo tổng hợp</button><button type="button" class="secondary-action" id="detailReportBtn">▤ Báo cáo chi tiết</button><button type="button" class="secondary-action" id="closeReport">◉ Đóng</button></div>
+        </div>
       </form>
       <section class="report-results hidden" id="reportResults">
         <div class="report-viewer-toolbar">
@@ -1205,6 +572,7 @@
           <header class="paper-top"><div><strong>Đơn vị: Công ty Cổ Phần An Hưng</strong><br><strong>Địa chỉ: Khu phố Đông Phước, phường Tuy Hòa, tỉnh Đắk Lắk</strong></div><div class="paper-form"><strong id="paperFormCode">Báo cáo nhập xuất tồn</strong></div></header>
           <h2 class="paper-title">BÁO CÁO NHẬP XUẤT TỒN</h2>
           <p class="paper-period">Kỳ báo cáo: Từ ngày <span id="paperFrom">10/07/2019</span> đến ngày <span id="paperTo">11/07/2019</span></p>
+          <p class="paper-filter-summary" id="paperFilterSummary"></p>
           <p class="paper-warehouse"><strong>Mã kho:</strong> <span id="paperWarehouseCode">KHO-TP</span><span class="warehouse-name"><strong>Tên kho:</strong> <span id="paperWarehouseName">Kho thành phẩm</span></span><span class="warehouse-name"><strong>Hợp đồng:</strong> <span id="paperContract">HD01/2019-TSD</span></span></p>
           <div class="paper-table-wrap inventory-table"><table class="stock-ledger inventory-ledger" aria-label="Báo cáo tổng hợp nhập xuất tồn">
             <thead>
@@ -1256,6 +624,15 @@
           <div class="paper-date">Ngày 11 tháng 07 năm 2019</div>
           <footer class="paper-signatures"><div><strong>Người ghi sổ</strong><em>(Ký, họ tên)</em></div><div><strong>Kế toán trưởng</strong><em>(Ký, họ tên)</em></div><div><strong>Giám đốc</strong><em>(Ký, họ tên, đóng dấu)</em></div></footer>
         </article>
+        <div class="report-pagination" id="inventoryReportPagination">
+          <span class="report-pagination-count" id="inventoryReportCount">Hiển thị 0 / 0 mặt hàng</span>
+          <label class="report-pagination-size">Số dòng/trang
+            <select id="inventoryReportPageSize" aria-label="Số mặt hàng trên mỗi trang">
+              <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option>
+            </select>
+          </label>
+          <nav class="report-pagination-pages" id="inventoryReportPageButtons" aria-label="Phân trang báo cáo"></nav>
+        </div>
       </section>
     </section>
       <dialog id="voucherSearchDialog" class="voucher-search-dialog">
@@ -1279,8 +656,17 @@
         <footer><button type="button" id="cancelPasswordChange">Hủy</button><button type="submit" id="savePasswordChange">Lưu mật khẩu</button></footer>
       </form>
     </dialog>
-    <!-- lịch sử đăng nhập -->
-     
+    <dialog id="loginHistoryDialog" class="password-dialog login-history-dialog" aria-labelledby="loginHistoryTitle">
+      <section>
+        <header><div><h2 id="loginHistoryTitle">Lịch sử đăng nhập</h2><p>200 lần đăng nhập gần nhất, gồm cả đăng nhập thành công và thất bại.</p></div><button type="button" id="closeLoginHistory" aria-label="Đóng">×</button></header>
+        <p id="loginHistoryMessage" class="password-message" role="status" aria-live="polite"></p>
+        <div class="login-history-table-wrap"><table class="login-history-table">
+          <thead><tr><th>Thời gian</th><th>Tài khoản</th><th>Loại tài khoản</th><th>Kết quả</th><th>Địa chỉ IP</th></tr></thead>
+          <tbody id="loginHistoryRows"><tr><td colspan="5">Đang tải lịch sử...</td></tr></tbody>
+        </table></div>
+        <footer><button type="button" id="clearLoginHistory" class="login-history-clear">Xóa lịch sử</button><button type="button" id="refreshLoginHistory">Làm mới</button><button type="button" id="dismissLoginHistory">Đóng</button></footer>
+      </section>
+    </dialog>
     <dialog id="createWarehouseUserDialog" class="password-dialog">
       <form id="createWarehouseUserForm">
         <header><div><h2>Quản lý tài khoản kho</h2><p>Tạo tài khoản kho hoặc cấp lại mật khẩu cho user đã có.</p></div><button type="button" id="closeCreateUserDialog" aria-label="Đóng">×</button></header>
@@ -1296,15 +682,15 @@
         <label for="newUserPassword">Mật khẩu ban đầu</label>
         <input id="newUserPassword" type="password" autocomplete="new-password" minlength="8" required>
         <span class="warehouse-access-label">Kho được thao tác</span>
+        <label class="warehouse-access-select-all"><input id="selectAllWarehouseCodes" type="checkbox"><span>Chọn tất cả</span></label>
         <div id="newUserWarehouses" class="warehouse-access-options" role="group" aria-label="Chọn các kho được thao tác"></div>
         <p class="password-message" id="createUserMessage" role="alert" aria-live="polite"></p>
         <footer><button type="button" id="cancelCreateUser">Hủy</button><button type="submit" id="saveNewUser">Tạo user</button></footer>
       </form>
     </dialog>
-    <!-- Lịch sử đăng nhập -->
-     
     <footer class="site-copyright">Copyright by IT - ANHUCO</footer>
     <script src="/node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="index.js"></script>
   </body>
 </html>
+

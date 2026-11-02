@@ -1,0 +1,76 @@
+.page-choice.transfer-nav-in::before{content:'↓'}.page-choice.transfer-nav-out::before{content:'↑'}.page-choice.transfer-nav-report::before{content:'▤';font-size:19px}.page-choice[href="/transfer"]{text-decoration:none}.transfer-help-note{margin-left:auto;color:#74839a;font-size:11px}.transfer-form{display:flex;flex-direction:column;gap:16px}.transfer-general-box .form-row select{height:35px;min-width:0;padding:0 10px;border:1px solid #d7e1ed;border-radius:8px;background:#fcfdff;color:#1e293b;font:12px 'Segoe UI Variable','Segoe UI',sans-serif;outline:none}.transfer-general-box .form-row select:focus{border-color:#78a4ec;box-shadow:0 0 0 3px rgb(59 130 246 / 12%)}.transfer-caption{display:flex;align-items:center;justify-content:space-between;gap:12px}.transfer-caption>div{display:grid;gap:4px}.transfer-caption small{color:#74839a;font-size:11px;font-weight:400}.transfer-caption .button,.item-picker-row .button,.list-tools .button{height:34px;padding:0 12px;border:1px solid #d8e1ec;border-radius:8px;background:#fff;color:#35516d;font:600 12px 'Segoe UI Variable','Segoe UI',sans-serif;cursor:pointer}.transfer-caption .button:hover,.item-picker-row .button:hover,.list-tools .button:hover{background:#f4f8ff;border-color:#bfd0e6}.transfer-guidance{padding:0 16px 10px;color:#74839a;font-size:11px}.transfer-items-section .table-wrap,.transfer-list-section .table-wrap{height:auto;min-height:130px;max-height:48vh}.transfer-items{min-width:1050px;table-layout:fixed;border-collapse:separate;border-spacing:0}.transfer-items th,.transfer-list th{height:40px;padding:8px 9px;border-bottom:1px solid #dfe7f1;background:#f4f7fb;color:#4d6079;font-size:11px;text-align:left;white-space:nowrap}.transfer-items td,.transfer-list td{height:39px;padding:5px 7px;border-bottom:1px solid #e7edf3;color:#2e405a;font-size:12px;white-space:nowrap}.transfer-items td input,.transfer-items td select{width:100%;min-width:0;height:30px;padding:0 7px;border:1px solid #d7e1ed;border-radius:6px;background:#fcfdff;color:#24354f;font:12px 'Segoe UI Variable','Segoe UI',sans-serif}.transfer-items td .qty-input,.transfer-items td .price-input{text-align:right}.transfer-items tfoot th,.transfer-items tfoot td{height:38px;background:#f8fafc;font-weight:700}.transfer-items .line-amount{text-align:right}.transfer-items .row-delete{width:26px;height:26px;border:1px solid #f2d4d4;border-radius:6px;background:#fff7f7;color:#bd3434;cursor:pointer}.item-picker-row{display:flex;align-items:center;gap:10px;padding:10px 15px 0}.item-picker-row>span{color:#74839a;font-size:11px}.transfer-form .message{min-height:15px;margin:0;padding:0 15px;color:#c33c3c;font-size:12px}.transfer-form .success-message{color:#087e62}.transfer-totals{margin-top:-8px}.transfer-actions{margin-top:-10px}.transfer-actions .primary-save{min-width:190px;border-color:#2863ce;background:#2863ce;color:#fff}.transfer-actions .primary-save:hover:not(:disabled){background:#1d56bd}.transfer-actions #resetTransfer{border-color:#d8e1ec;background:#fff;color:#40536d}.transfer-list-section{margin-top:4px}.transfer-list-section .transfer-caption{min-height:52px;padding-bottom:10px}.transfer-list{min-width:840px;table-layout:auto}.transfer-list tbody tr:hover{background:#f8fbff}.transfer-list .detail-button{padding:6px 9px;border:1px solid #d6e2f0;border-radius:7px;background:#fff;color:#2860c6;font:600 11px 'Segoe UI Variable','Segoe UI',sans-serif;cursor:pointer}.list-tools{display:flex;align-items:center;gap:8px}.list-tools input,.picker-toolbar input{height:34px;width:220px;padding:0 10px;border:1px solid #d7e1ed;border-radius:8px;background:#fcfdff;color:#24354f;font:12px 'Segoe UI Variable','Segoe UI',sans-serif}.list-message{min-height:14px;margin:0;padding:4px 12px;color:#c33c3c;font-size:11px}.detail-dialog{width:min(1050px,calc(100% - 28px));max-height:85vh;padding:20px;border:1px solid #d9e3ee;border-radius:15px;box-shadow:0 24px 90px #10233d40}.detail-dialog::backdrop{background:#15243b66;backdrop-filter:blur(3px)}.detail-dialog header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.detail-dialog h2{margin:0;font-size:18px}.detail-dialog header p,.detail-description{margin:5px 0 0;color:#6d7c92;font-size:12px}.detail-dialog header button{width:34px;height:34px;border:1px solid #dce5ef;border-radius:8px;background:#fff;cursor:pointer}.detail-dialog .table-wrap{max-height:min(55vh,520px);min-height:100px}.detail-description{margin-top:12px}.item-picker-dialog{width:min(1120px,calc(100% - 28px))}.picker-toolbar{display:flex;gap:9px;margin-bottom:12px}.picker-toolbar input{width:auto;flex:1}.picker-toolbar .button,.picker-footer .button{height:34px;padding:0 12px;border:1px solid #d8e1ec;border-radius:8px;background:#fff;color:#35516d;font:600 12px 'Segoe UI Variable','Segoe UI',sans-serif;cursor:pointer}.picker-table{width:100%;min-width:850px;table-layout:auto;border-collapse:collapse;white-space:nowrap;font-size:12px}.picker-table th,.picker-table td{padding:9px 10px;border-bottom:1px solid #e7edf3;text-align:left}.picker-table thead{position:sticky;top:0;background:#f4f7fb;color:#40536d}.picker-table input[type=checkbox]{width:16px;height:16px;accent-color:#3567d9}.picker-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:14px;color:#6d7c92;font-size:12px}.picker-footer>div{display:flex;gap:8px}.picker-selected{background:#f1f7ff}.picker-empty{text-align:center!important;color:#8290a3;padding:24px!important}.picker-footer .button.primary{background:#3567d9;color:#fff;border-color:#3567d9}.picker-footer .button.secondary:hover,.picker-toolbar .button:hover{background:#f4f8ff;border-color:#bfd0e6}.empty-row{text-align:center!important;color:#8492a6;padding:22px!important}
+@media(max-width:900px){.transfer-document-box{grid-column:1/-1}.main-grid{grid-template-columns:minmax(0,1fr)}.transfer-help-note{display:none}}
+@media(max-width:620px){.transfer-caption{align-items:flex-start}.transfer-caption>div{min-width:0}.transfer-caption .button{white-space:nowrap}.transfer-guidance{line-height:1.5}.item-picker-row{align-items:flex-start;flex-direction:column}.transfer-list-section .transfer-caption{align-items:stretch;flex-direction:column}.list-tools{align-items:stretch}.list-tools input{width:100%}.picker-toolbar{flex-direction:column}.picker-toolbar input{width:100%;flex:none}.picker-footer{align-items:stretch;flex-direction:column}.picker-footer>div{justify-content:flex-end}.transfer-actions .primary-save{min-width:0}}
+body:not(.printing-voucher) .page-choice.transfer-nav-in::before{content:'↓'}
+body:not(.printing-voucher) .page-choice.transfer-nav-out::before{content:'↑'}
+body:not(.printing-voucher) .page-choice.transfer-nav-report::before{content:'▤';font-size:19px}
+body:not(.printing-voucher) .page-choice[href]{text-decoration:none}
+
+/* Distribute transfer table columns across the available width. */
+.transfer-items{width:100%}
+.transfer-items th,.transfer-items td{box-sizing:border-box}
+.transfer-items th:not(:last-child){border-right:1px solid #e7edf3}
+.transfer-items th:nth-child(1),.transfer-items td:nth-child(1){width:4%}
+.transfer-items th:nth-child(2),.transfer-items td:nth-child(2){width:10%}
+.transfer-items th:nth-child(3),.transfer-items td:nth-child(3){width:14%}
+.transfer-items th:nth-child(4),.transfer-items td:nth-child(4){width:16%}
+.transfer-items th:nth-child(5),.transfer-items td:nth-child(5){width:9%}
+.transfer-items th:nth-child(6),.transfer-items td:nth-child(6){width:7%}
+.transfer-items th:nth-child(7),.transfer-items td:nth-child(7){width:10%}
+.transfer-items th:nth-child(8),.transfer-items td:nth-child(8){width:10%}
+.transfer-items th:nth-child(9),.transfer-items td:nth-child(9){width:14%}
+.transfer-items th:nth-child(10),.transfer-items td:nth-child(10){width:6%}
+.detail-dialog .transfer-items td{height:auto;padding:8px 7px;white-space:normal;overflow-wrap:anywhere;line-height:1.45;vertical-align:top}
+.transfer-list .delete-transfer-button{margin-left:6px;border-color:#f2cccc;color:#b42318}
+.transfer-list .delete-transfer-button:hover:not(:disabled){background:#fff5f5;border-color:#e7a3a3;color:#a11b12}
+.transfer-list .delete-transfer-button:disabled{opacity:.55;cursor:wait}
+.list-message.success-message{color:#087e62}
+
+/* Motion and typography polish for the transfer page. */
+.transfer-items tbody tr,
+.transfer-list tbody tr { animation: transfer-row-enter .3s cubic-bezier(.2,.75,.25,1) both; }
+.transfer-items tbody tr:nth-child(2),
+.transfer-list tbody tr:nth-child(2) { animation-delay: .035s; }
+.transfer-items tbody tr:nth-child(3),
+.transfer-list tbody tr:nth-child(3) { animation-delay: .07s; }
+.transfer-items tbody tr:nth-child(4),
+.transfer-list tbody tr:nth-child(4) { animation-delay: .105s; }
+.transfer-list .detail-button,
+.transfer-caption .button,
+.item-picker-row .button,
+.picker-toolbar .button,
+.picker-footer .button { transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease; }
+.transfer-list .detail-button:hover:not(:disabled),
+.transfer-caption .button:hover,
+.item-picker-row .button:hover,
+.picker-toolbar .button:hover,
+.picker-footer .button:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgb(30 64 110 / 9%); }
+.transfer-list .detail-button:active:not(:disabled),
+.transfer-caption .button:active,
+.item-picker-row .button:active,
+.picker-toolbar .button:active,
+.picker-footer .button:active { transform: translateY(0) scale(.98); }
+.detail-dialog[open] { animation: transfer-dialog-enter .24s cubic-bezier(.2,.75,.25,1) both; }
+.detail-dialog::backdrop { animation: transfer-backdrop-enter .2s ease-out both; }
+@keyframes transfer-row-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes transfer-dialog-enter {
+  from { opacity: 0; transform: translateY(9px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes transfer-backdrop-enter {
+  from { background: rgb(21 36 59 / 0%); }
+  to { background: rgb(21 36 59 / 40%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transfer-items tbody tr,
+  .transfer-list tbody tr,
+  .detail-dialog[open] { animation: none !important; }
+  .transfer-list .detail-button,
+  .transfer-caption .button,
+  .item-picker-row .button,
+  .picker-toolbar .button,
+  .picker-footer .button { transition-duration: .01ms !important; }
+}

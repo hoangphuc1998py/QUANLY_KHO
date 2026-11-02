@@ -27,7 +27,7 @@ app.use((req, res, next) => {
 })
 
 const databaseFile =
-  process.env.DATABASE_FILE || path.join(__dirname, 'database.sqlite')
+  path.resolve(__dirname, process.env.DATABASE_FILE || 'database.sqlite')
 const db = new Database(databaseFile)
 db.pragma('journal_mode = WAL')
 db.pragma('busy_timeout = 10000')
@@ -142,6 +142,32 @@ db.exec(`
     amount REAL DEFAULT 0,
     FOREIGN KEY (issue_id) REFERENCES inventory_issues(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS inventory_transfers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucher_no TEXT UNIQUE NOT NULL,
+    voucher_date TEXT NOT NULL,
+    source_warehouse_code TEXT NOT NULL,
+    destination_warehouse_code TEXT NOT NULL,
+    description TEXT,
+    created_by TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS inventory_transfer_details (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    transfer_id INTEGER NOT NULL,
+    line_number INTEGER NOT NULL,
+    item_code TEXT NOT NULL,
+    item_name TEXT,
+    item_type TEXT,
+    color TEXT,
+    unit TEXT,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL DEFAULT 0,
+    amount REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY (transfer_id) REFERENCES inventory_transfers(id) ON DELETE CASCADE
+  );
 `)
 
 db.exec(`
@@ -156,6 +182,33 @@ db.exec(`
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `)
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_login_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    role TEXT,
+    result TEXT NOT NULL CHECK (result IN ('success', 'failure')),
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_login_history_created_at
+    ON admin_login_history(created_at DESC);
+`)
+const recordLoginAttempt = db.prepare(`
+  INSERT INTO admin_login_history (username, role, result, ip_address, user_agent)
+  VALUES (?, ?, ?, ?, ?)
+`)
+function saveLoginHistory(req, { username, role, result }) {
+  recordLoginAttempt.run(
+    username || '(trống)',
+    role || null,
+    result,
+    req.socket?.remoteAddress || null,
+    String(req.get('user-agent') || '').slice(0, 500) || null,
+  )
+}
 
 const WAREHOUSE_SITE_DATA = [
   ['KHO TONG CONG TY', ['KHO TONG CONG TY']],
@@ -347,6 +400,7 @@ app.post('/api/auth/setup', (req, res) => {
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
   db.prepare('INSERT INTO admin_users (username, password_salt, password_hash) VALUES (?, ?, ?)').run(username, salt, hash)
+  saveLoginHistory(req, { username, role: 'admin', result: 'success' })
   setAdminSession(res, req, { username, role: 'admin', warehouseCode: null, warehouseCodes: [] })
   res.status(201).json({ success: true, data: { username } })
 })
@@ -360,6 +414,11 @@ app.post('/api/auth/login', (req, res) => {
     : crypto.scryptSync(password, 'invalid-admin-login-salt', 64)
   const expectedHash = admin ? Buffer.from(admin.password_hash, 'hex') : Buffer.alloc(64)
   const valid = suppliedHash.length === expectedHash.length && crypto.timingSafeEqual(suppliedHash, expectedHash)
+  saveLoginHistory(req, {
+    username,
+    role: admin?.role,
+    result: admin && valid ? 'success' : 'failure',
+  })
   if (!admin || !valid) {
     res.status(401).json({ success: false, error: 'Tên đăng nhập hoặc mật khẩu không đúng.' })
     return
@@ -381,7 +440,6 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'admin.html')))
 app.get('/admin.css', (_req, res) => res.sendFile(path.join(__dirname, 'admin.css')))
 app.get('/admin.js', (_req, res) => res.sendFile(path.join(__dirname, 'admin.js')))
-app.get('/favicon.png', (_req, res) => res.sendFile(path.join(__dirname, 'favicon.png')))
 
 
 function requireAdmin(req, res, next) {
@@ -398,9 +456,10 @@ function requireAdmin(req, res, next) {
   res.redirect('/admin')
 }
 
-app.get(['/', '/index.html'], requireAdmin, (_req, res) =>
+app.get(['/', '/index.html'], requireAdmin, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
   res.sendFile(path.join(__dirname, 'index.html'))
-)
+})
 app.use('/api', requireAdmin)
 ensureColumn('admin_users', 'role', "TEXT NOT NULL DEFAULT 'admin'")
 ensureColumn('admin_users', 'warehouse_code', 'TEXT')
@@ -416,36 +475,26 @@ function requireAdminRole(req, res, next) {
   res.status(403).json({ success: false, error: 'Tài khoản này không có quyền thực hiện thao tác.' })
 }
 
+app.get('/api/admin/login-history', requireAdminRole, (_req, res) => {
+  const history = db.prepare(`
+    SELECT id, username, role, result, ip_address AS ipAddress,
+      user_agent AS userAgent, created_at AS createdAt
+    FROM admin_login_history
+    ORDER BY id DESC
+    LIMIT 200
+  `).all()
+  res.json({ success: true, data: history })
+})
+
+app.post('/api/admin/login-history/clear', requireAdminRole, (_req, res) => {
+  const result = db.prepare('DELETE FROM admin_login_history').run()
+  res.json({ success: true, data: { deletedCount: result.changes } })
+})
+
 app.get('/api/admin/users', requireAdminRole, (_req, res) => {
   const users = db.prepare("SELECT id, username, warehouse_code AS warehouseCode, warehouse_codes AS warehouseCodes, created_at AS createdAt FROM admin_users WHERE role = 'warehouse' ORDER BY username COLLATE NOCASE").all()
     .map(user => ({ ...user, warehouseCodes: assignedWarehouseCodes(user) }))
   res.json({ success: true, data: users })
-})
-
-app.post('/api/admin/users/:id/reset-password', requireAdminRole, (req, res) => {
-  const userId = Number(req.params.id)
-  const password = typeof req.body?.password === 'string' ? req.body.password : ''
-  if (!Number.isSafeInteger(userId) || userId < 1) {
-    res.status(400).json({ success: false, error: 'Tài khoản không hợp lệ.' })
-    return
-  }
-  if (password.length < 8) {
-    res.status(400).json({ success: false, error: 'Mật khẩu mới cần có ít nhất 8 ký tự.' })
-    return
-  }
-  const user = db.prepare("SELECT id, username FROM admin_users WHERE id = ? AND role = 'warehouse'").get(userId)
-  if (!user) {
-    res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản kho.' })
-    return
-  }
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
-  db.prepare('UPDATE admin_users SET password_salt = ?, password_hash = ? WHERE id = ?').run(salt, hash, user.id)
-  for (const [token, session] of adminSessions) {
-    if (session.username.toLocaleLowerCase('vi') === user.username.toLocaleLowerCase('vi'))
-      adminSessions.delete(token)
-  }
-  res.json({ success: true, data: { id: user.id, username: user.username } })
 })
 
 app.post('/api/admin/users', requireAdminRole, (req, res) => {
@@ -489,6 +538,33 @@ app.post('/api/admin/users', requireAdminRole, (req, res) => {
   }
 })
 
+app.post('/api/admin/users/:id/reset-password', requireAdminRole, (req, res) => {
+  const userId = Number(req.params.id)
+  const password = typeof req.body?.password === 'string' ? req.body.password : ''
+  if (!Number.isSafeInteger(userId) || userId < 1) {
+    res.status(400).json({ success: false, error: 'Tài khoản không hợp lệ.' })
+    return
+  }
+  if (password.length < 8) {
+    res.status(400).json({ success: false, error: 'Mật khẩu mới cần có ít nhất 8 ký tự.' })
+    return
+  }
+  const user = db.prepare("SELECT id, username FROM admin_users WHERE id = ? AND role = 'warehouse'").get(userId)
+  if (!user) {
+    res.status(404).json({ success: false, error: 'Không tìm thấy tài khoản kho.' })
+    return
+  }
+
+  const salt = crypto.randomBytes(16).toString('hex')
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex')
+  db.prepare('UPDATE admin_users SET password_salt = ?, password_hash = ? WHERE id = ?').run(salt, hash, user.id)
+  for (const [token, session] of adminSessions) {
+    if (session.username.toLocaleLowerCase('vi') === user.username.toLocaleLowerCase('vi'))
+      adminSessions.delete(token)
+  }
+  res.json({ success: true, data: { id: user.id, username: user.username } })
+})
+
 app.post('/api/auth/change-password', (req, res) => {
   const session = getAdminSession(req)
   const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : ''
@@ -523,8 +599,26 @@ app.post('/api/auth/change-password', (req, res) => {
   })
   res.json({ success: true })
 })
-app.get('/index.css', requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, 'index.css')))
-app.get('/index.js', requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, 'index.js')))
+app.get('/index.css', requireAdmin, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.sendFile(path.join(__dirname, 'index.css'))
+})
+app.get('/index.js', requireAdmin, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.sendFile(path.join(__dirname, 'index.js'))
+})
+app.get('/transfer', requireAdmin, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.sendFile(path.join(__dirname, 'transfer.html'))
+})
+app.get('/transfer.css', requireAdmin, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.sendFile(path.join(__dirname, 'transfer.css'))
+})
+app.get('/transfer.js', requireAdmin, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.sendFile(path.join(__dirname, 'transfer.js'))
+})
 app.get('/node_modules/xlsx/dist/xlsx.full.min.js', requireAdmin, (_req, res) =>
   res.sendFile(path.join(__dirname, 'node_modules', 'xlsx', 'dist', 'xlsx.full.min.js'))
 )
@@ -813,16 +907,17 @@ app.post('/api/inventory-receipts', (req, res) => {
 })
 
 app.get('/api/inventory-receipts', (req, res) => {
-  const query = String(req.query.q || '').trim()
-  const escaped = query.replace(/[\\%_]/g, value => `\\${value}`)
-  const isAdmin = req.adminSession.role === 'admin'
-  const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
-  const warehouseMatch = warehouseCodes.length
-    ? `COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, '')) COLLATE NOCASE IN (${warehouseCodes.map(() => '?').join(',')})`
-    : '0 = 1'
-  const warehouseJoin = isAdmin
-    ? ''
-    : `AND ${warehouseMatch}`
+  try {
+    const query = String(req.query.q || '').trim()
+    const escaped = query.replace(/[\\%_]/g, value => `\\${value}`)
+    const isAdmin = req.adminSession.role === 'admin'
+    const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+    const warehouseMatch = warehouseCodes.length
+      ? `COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, '')) COLLATE NOCASE IN (${warehouseCodes.map(() => '?').join(',')})`
+      : '0 = 1'
+    const warehouseJoin = isAdmin
+      ? ''
+      : `AND ${warehouseMatch}`
   const warehouseVisibility = isAdmin ? '' : 'AND d.receipt_id IS NOT NULL'
   const rows = db.prepare(`
     SELECT r.id, r.voucher_no AS voucherNo, r.voucher_date AS voucherDate,
@@ -840,11 +935,11 @@ app.get('/api/inventory-receipts', (req, res) => {
       d.ecus_item_code AS ecusItemCode, d.warehouse_code AS detailWarehouseCode,
       d.debit_account AS debitAccount, d.credit_account AS creditAccount,
       d.unit, d.color, d.quantity, d.unit_price AS unitPrice
-    FROM inventory_receipts r
+      FROM inventory_receipts r
     LEFT JOIN inventory_receipt_details d ON d.receipt_id = r.id ${warehouseJoin}
     WHERE r.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility}
     ORDER BY r.voucher_no, d.line_number
-  `).all(...warehouseCodes, `%${escaped}%`)
+    `).all(...warehouseCodes, `%${escaped}%`)
   const receipts = [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
     ...row,
     items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({
@@ -867,6 +962,11 @@ app.get('/api/inventory-receipts', (req, res) => {
     delete receipt.unitPrice
   }
   res.json({ success: true, data: receipts })
+}
+catch (error) {
+  console.error('Lỗi khi truy vấn phiếu nhập kho:', error)
+  res.status(500).json({ success: false, error: 'Không thể truy vấn phiếu nhập kho.' })
+}
 })
 
 const saveIssue = db.transaction(body => {
@@ -957,33 +1057,334 @@ app.post('/api/inventory-issues', (req, res) => {
 })
 
 app.get('/api/inventory-issues', (req, res) => {
-  const query = String(req.query.q || '').trim().replace(/[\\%_]/g, value => `\\${value}`)
-  const isAdmin = req.adminSession.role === 'admin'
-  const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
-  const warehouseMatch = warehouseCodes.length
+  try {
+    const query = String(req.query.q || '').trim().replace(/[\\%_]/g, value => `\\${value}`)
+    const isAdmin = req.adminSession.role === 'admin'
+    const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+    const warehouseMatch = warehouseCodes.length
     ? `COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(i.warehouse_code, '')) COLLATE NOCASE IN (${warehouseCodes.map(() => '?').join(',')})`
     : '0 = 1'
-  const warehouseJoin = isAdmin
+    const warehouseJoin = isAdmin
     ? ''
     : `AND ${warehouseMatch}`
-  const warehouseVisibility = isAdmin ? '' : 'AND d.issue_id IS NOT NULL'
-  const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.color,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
-  const records = [...new Map(rows.map(row => [row.id,row])).values()].map(row => ({
-    ...row,
-    items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,color:detail.color,quantity:detail.quantity,unitPrice:detail.unitPrice })),
-  }))
-  for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','color','quantity','unitPrice'].forEach(key => delete record[key])
-  res.json({ success:true,data:records })
+    const warehouseVisibility = isAdmin ? '' : 'AND d.issue_id IS NOT NULL'
+    const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.color,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
+    const records = [...new Map(rows.map(row => [row.id,row])).values()].map(row => ({
+      ...row,
+      items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,color:detail.color,quantity:detail.quantity,unitPrice:detail.unitPrice })),
+    }))
+    for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','color','quantity','unitPrice'].forEach(key => delete record[key])
+      res.json({ success:true,data:records })
+  }
+  catch (error) {
+    res.status(422).json({ success: false, error: error.message })
+  }
+})
+
+app.get('/api/warehouse-transfers/warehouses', (req, res) => {
+  const warehouses = req.adminSession.role === 'admin'
+    ? availableLinkedStores()
+    : assignedWarehouseCodes(req.adminSession)
+  res.json({ success: true, data: warehouses })
+})
+
+app.get('/api/warehouse-transfers/next-number', (req, res) => {
+  const rows = db.prepare('SELECT voucher_no AS voucherNo FROM inventory_transfers').all()
+  const pattern = /^DC(\d+)$/i
+  const next = rows.reduce((maximum, row) => {
+    const match = pattern.exec(String(row.voucherNo || '').trim())
+    return match ? Math.max(maximum, Number(match[1]) || 0) : maximum
+  }, 0) + 1
+  res.json({ success: true, data: { voucherNo: `DC${String(next).padStart(5, '0')}` } })
+})
+
+const getTransferStockBalance = db.prepare(`
+  WITH stock_events AS (
+    SELECT COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, ''), '') AS warehouseCode,
+      d.item_code AS itemCode, COALESCE(r.item_type, '') AS itemType,
+      COALESCE(d.color, '') AS color, COALESCE(d.unit, '') AS unit,
+      d.quantity AS quantity
+    FROM inventory_receipt_details d JOIN inventory_receipts r ON r.id = d.receipt_id
+    UNION ALL
+    SELECT COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(i.warehouse_code, ''), ''),
+      d.item_code, COALESCE(i.item_type, ''), COALESCE(d.color, ''), COALESCE(d.unit, ''),
+      -d.quantity
+    FROM inventory_issue_details d JOIN inventory_issues i ON i.id = d.issue_id
+    UNION ALL
+    SELECT t.source_warehouse_code, d.item_code, COALESCE(d.item_type, ''),
+      COALESCE(d.color, ''), COALESCE(d.unit, ''), -d.quantity
+    FROM inventory_transfer_details d JOIN inventory_transfers t ON t.id = d.transfer_id
+    UNION ALL
+    SELECT t.destination_warehouse_code, d.item_code, COALESCE(d.item_type, ''),
+      COALESCE(d.color, ''), COALESCE(d.unit, ''), d.quantity
+    FROM inventory_transfer_details d JOIN inventory_transfers t ON t.id = d.transfer_id
+  )
+  SELECT COALESCE(SUM(quantity), 0) AS currentQuantity
+  FROM stock_events
+  WHERE warehouseCode = ? COLLATE NOCASE
+    AND itemCode = ? COLLATE NOCASE
+    AND itemType = ? COLLATE NOCASE
+    AND color = ? COLLATE NOCASE
+    AND unit = ? COLLATE NOCASE
+`)
+
+app.get('/api/warehouse-transfers/items', (req, res) => {
+  try {
+    const isAdmin = req.adminSession.role === 'admin'
+    const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+    const selectedWarehouse = cleanText(req.query.warehouse)
+    if (!selectedWarehouse) {
+      res.json({ success: true, data: [] })
+      return
+    }
+    const allowed = new Set((isAdmin ? availableLinkedStores() : warehouseCodes)
+      .map(code => code.toLocaleUpperCase('vi')))
+    if (!allowed.has(selectedWarehouse.toLocaleUpperCase('vi'))) {
+      res.status(403).json({ success: false, error: 'Kho chuyển đi không nằm trong phạm vi tài khoản.' })
+      return
+    }
+    const query = cleanText(req.query.q)
+    const escaped = query.replace(/[\\%_]/g, value => `\\${value}`)
+    const clauses = ['warehouseCode = ? COLLATE NOCASE']
+    const params = [selectedWarehouse]
+    if (query) {
+      clauses.push("(itemCode LIKE ? ESCAPE '\\' COLLATE NOCASE OR itemName LIKE ? ESCAPE '\\' COLLATE NOCASE OR itemType LIKE ? ESCAPE '\\' COLLATE NOCASE)")
+      params.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`)
+    }
+    const items = db.prepare(`
+      WITH item_sources AS (
+        SELECT d.item_code AS itemCode, COALESCE(d.item_name, '') AS itemName,
+          COALESCE(r.item_type, '') AS itemType, COALESCE(d.color, '') AS color,
+          COALESCE(d.unit, '') AS unit, COALESCE(d.unit_price, 0) AS unitPrice,
+          COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(r.warehouse_code, ''), '') AS warehouseCode,
+          r.voucher_date AS movementDate
+        FROM inventory_receipt_details d JOIN inventory_receipts r ON r.id = d.receipt_id
+        UNION ALL
+        SELECT d.item_code, COALESCE(d.item_name, ''), COALESCE(i.item_type, ''),
+          COALESCE(d.color, ''), COALESCE(d.unit, ''), COALESCE(d.unit_price, 0),
+          COALESCE(NULLIF(d.warehouse_code, ''), NULLIF(i.warehouse_code, ''), ''), i.voucher_date
+        FROM inventory_issue_details d JOIN inventory_issues i ON i.id = d.issue_id
+        UNION ALL
+        SELECT d.item_code, COALESCE(d.item_name, ''), COALESCE(d.item_type, ''),
+          COALESCE(d.color, ''), COALESCE(d.unit, ''), COALESCE(d.unit_price, 0),
+          t.source_warehouse_code, t.voucher_date
+        FROM inventory_transfer_details d JOIN inventory_transfers t ON t.id = d.transfer_id
+        UNION ALL
+        SELECT d.item_code, COALESCE(d.item_name, ''), COALESCE(d.item_type, ''),
+          COALESCE(d.color, ''), COALESCE(d.unit, ''), COALESCE(d.unit_price, 0),
+          t.destination_warehouse_code, t.voucher_date
+        FROM inventory_transfer_details d JOIN inventory_transfers t ON t.id = d.transfer_id
+      ), ranked_items AS (
+        SELECT *, ROW_NUMBER() OVER (
+          PARTITION BY itemCode, itemName, itemType, color, unit
+          ORDER BY movementDate DESC
+        ) AS rowNumber
+        FROM item_sources
+        ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+      )
+      SELECT itemCode, itemName, itemType, color, unit, unitPrice, warehouseCode
+      FROM ranked_items WHERE rowNumber = 1
+      ORDER BY itemCode COLLATE NOCASE, itemName COLLATE NOCASE
+      LIMIT 500
+    `).all(...params).map(item => ({
+      ...item,
+      currentQuantity: getTransferStockBalance.get(
+        selectedWarehouse, item.itemCode, item.itemType, item.color, item.unit
+      ).currentQuantity,
+    }))
+    res.json({ success: true, data: items })
+  } catch (error) {
+    res.status(422).json({ success: false, error: error.message })
+  }
+})
+
+app.get('/api/warehouse-transfers', (req, res) => {
+  try {
+    const isAdmin = req.adminSession.role === 'admin'
+    const warehouseCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
+    const query = cleanText(req.query.q)
+    const escaped = query.replace(/[\\%_]/g, value => `\\${value}`)
+    const clauses = []
+    const params = []
+    if (!isAdmin) {
+      if (!warehouseCodes.length) clauses.push('0 = 1')
+      else {
+        const placeholders = warehouseCodes.map(() => '?').join(',')
+        clauses.push(`(t.source_warehouse_code COLLATE NOCASE IN (${placeholders}) OR t.destination_warehouse_code COLLATE NOCASE IN (${placeholders}))`)
+        params.push(...warehouseCodes, ...warehouseCodes)
+      }
+    }
+    if (query) {
+      clauses.push("(t.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE OR t.source_warehouse_code LIKE ? ESCAPE '\\' COLLATE NOCASE OR t.destination_warehouse_code LIKE ? ESCAPE '\\' COLLATE NOCASE)")
+      params.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`)
+    }
+    const rows = db.prepare(`
+      SELECT t.id, t.voucher_no AS voucherNo, t.voucher_date AS voucherDate,
+        t.source_warehouse_code AS sourceWarehouseCode,
+        t.destination_warehouse_code AS destinationWarehouseCode,
+        t.description, t.created_by AS createdBy,
+        d.item_code AS itemCode, d.item_name AS itemName, d.item_type AS itemType,
+        d.color, d.unit, d.quantity, d.unit_price AS unitPrice
+      FROM inventory_transfers t
+      LEFT JOIN inventory_transfer_details d ON d.transfer_id = t.id
+      ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+      ORDER BY t.voucher_date DESC, t.id DESC, d.line_number
+      LIMIT 4000
+    `).all(...params)
+    const records = [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
+      id: row.id,
+      voucherNo: row.voucherNo,
+      voucherDate: row.voucherDate,
+      sourceWarehouseCode: row.sourceWarehouseCode,
+      destinationWarehouseCode: row.destinationWarehouseCode,
+      description: row.description,
+      createdBy: row.createdBy,
+      items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({
+        itemCode: detail.itemCode, itemName: detail.itemName, itemType: detail.itemType,
+        color: detail.color, unit: detail.unit, quantity: detail.quantity, unitPrice: detail.unitPrice,
+      })),
+    }))
+    res.json({ success: true, data: records })
+  } catch (error) {
+    res.status(422).json({ success: false, error: error.message })
+  }
+})
+
+app.post('/api/warehouse-transfers', (req, res) => {
+  try {
+    const body = req.body || {}
+    const voucherNo = requireText(body.voucherNo, 'Số chứng từ')
+    const voucherDate = parseOptionalDate(body.voucherDate, 'Ngày chứng từ', true)
+    const sourceWarehouseCode = requireText(body.sourceWarehouseCode, 'Kho chuyển đi')
+    const destinationWarehouseCode = requireText(body.destinationWarehouseCode, 'Kho nhận')
+    if (sourceWarehouseCode.toLocaleUpperCase('vi') === destinationWarehouseCode.toLocaleUpperCase('vi'))
+      throw new Error('Kho chuyển đi và kho nhận phải khác nhau.')
+    const isAdmin = req.adminSession.role === 'admin'
+    const allowed = new Set((isAdmin ? availableLinkedStores() : assignedWarehouseCodes(req.adminSession))
+      .map(code => code.toLocaleUpperCase('vi')))
+    if (!allowed.has(sourceWarehouseCode.toLocaleUpperCase('vi')) || !allowed.has(destinationWarehouseCode.toLocaleUpperCase('vi')))
+      throw new Error('Kho chuyển đi và kho nhận phải thuộc phạm vi tài khoản được phân quyền.')
+    if (!Array.isArray(body.items) || !body.items.length)
+      throw new Error('Phiếu cần có ít nhất một dòng hàng.')
+    const items = body.items.map((item, index) => {
+      const itemCode = requireText(item.itemCode, `Mã hàng dòng ${index + 1}`)
+      const itemType = requireText(item.itemType, `Loại hàng dòng ${index + 1}`)
+      const quantity = parseNumber(item.quantity, `Số lượng dòng ${index + 1}`)
+      const unitPrice = parseNumber(item.unitPrice, `Đơn giá dòng ${index + 1}`)
+      if (quantity <= 0) throw new Error(`Số lượng dòng ${index + 1} phải lớn hơn 0.`)
+      if (unitPrice < 0) throw new Error(`Đơn giá dòng ${index + 1} không được âm.`)
+      return {
+        itemCode, itemType, itemName: cleanText(item.itemName), color: cleanText(item.color),
+        unit: cleanText(item.unit), quantity, unitPrice, amount: quantity * unitPrice,
+      }
+    })
+    const saveTransfer = db.transaction(() => {
+      const requestedByItem = new Map()
+      for (const item of items) {
+        const key = [item.itemCode, item.itemType, item.color, item.unit]
+          .map(value => value.toLocaleUpperCase('vi')).join('\u0000')
+        const current = requestedByItem.get(key) || { item, quantity: 0 }
+        current.quantity += item.quantity
+        requestedByItem.set(key, current)
+      }
+      for (const { item, quantity } of requestedByItem.values()) {
+        const available = Number(getTransferStockBalance.get(
+          sourceWarehouseCode, item.itemCode, item.itemType, item.color, item.unit
+        ).currentQuantity) || 0
+        if (quantity > available + 1e-9) {
+          throw new Error(`Mặt hàng ${item.itemCode} chỉ còn ${available.toLocaleString('vi-VN')} ${item.unit} tại kho chuyển đi; không thể chuyển ${quantity.toLocaleString('vi-VN')}.`)
+        }
+      }
+      const header = db.prepare(`
+        INSERT INTO inventory_transfers
+          (voucher_no, voucher_date, source_warehouse_code, destination_warehouse_code, description, created_by)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(voucherNo, voucherDate, sourceWarehouseCode, destinationWarehouseCode,
+        cleanText(body.description), req.adminSession.username)
+      const insert = db.prepare(`
+        INSERT INTO inventory_transfer_details
+          (transfer_id, line_number, item_code, item_name, item_type, color, unit, quantity, unit_price, amount)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      items.forEach((item, index) => insert.run(Number(header.lastInsertRowid), index + 1,
+        item.itemCode, item.itemName, item.itemType, item.color, item.unit,
+        item.quantity, item.unitPrice, item.amount))
+      return Number(header.lastInsertRowid)
+    })
+    const id = saveTransfer.immediate()
+    res.status(201).json({ success: true, data: { id, voucherNo } })
+  } catch (error) {
+    const status = error.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 409 : 422
+    res.status(status).json({ success: false, error: status === 409 ? 'Số chứng từ đã tồn tại.' : error.message })
+  }
+})
+
+app.post('/api/warehouse-transfers/:id/delete', (req, res) => {
+  try {
+    const transferId = Number(req.params.id)
+    if (!Number.isSafeInteger(transferId) || transferId < 1)
+      throw new Error('Phiếu điều chuyển không hợp lệ.')
+    const transfer = db.prepare(`
+      SELECT id, voucher_no AS voucherNo, source_warehouse_code AS sourceWarehouseCode,
+        destination_warehouse_code AS destinationWarehouseCode, created_by AS createdBy
+      FROM inventory_transfers WHERE id = ?
+    `).get(transferId)
+    if (!transfer) {
+      res.status(404).json({ success: false, error: 'Không tìm thấy phiếu điều chuyển.' })
+      return
+    }
+    if (req.adminSession.role !== 'admin') {
+      const allowed = new Set(assignedWarehouseCodes(req.adminSession).map(code => code.toLocaleUpperCase('vi')))
+      const isCreator = String(transfer.createdBy || '').toLocaleLowerCase('vi') === String(req.adminSession.username || '').toLocaleLowerCase('vi')
+      const hasBothWarehouses = allowed.has(transfer.sourceWarehouseCode.toLocaleUpperCase('vi')) &&
+        allowed.has(transfer.destinationWarehouseCode.toLocaleUpperCase('vi'))
+      if (!isCreator || !hasBothWarehouses) {
+        res.status(403).json({ success: false, error: 'Chỉ quản trị viên hoặc người lập được phân quyền cả hai kho mới có thể xóa phiếu này.' })
+        return
+      }
+    }
+    const deleteTransfer = db.transaction(() => {
+      db.prepare('DELETE FROM inventory_transfers WHERE id = ?').run(transferId)
+    })
+    deleteTransfer()
+    res.json({ success: true, data: { id: transferId, voucherNo: transfer.voucherNo } })
+  } catch (error) {
+    res.status(422).json({ success: false, error: error.message || 'Không thể xóa phiếu điều chuyển khỏi database.' })
+  }
 })
 
 app.get('/api/inventory-report', (req, res) => {
   try {
     const filters = req.query || {}
+    const movementCategory = cleanText(filters.movementCategory || 'all')
+    const voucherType = cleanText(filters.voucherType)
+    if (!['all', 'in', 'out'].includes(movementCategory)) {
+      throw new Error('Danh mục báo cáo không hợp lệ.')
+    }
     const fromDate = filters.fromDate
       ? parseOptionalDate(filters.fromDate, 'Từ ngày', true)
       : ''
     const clauses = []
     const params = []
+    const periodClauses = []
+    const periodParams = []
+    if (movementCategory !== 'all') {
+      periodClauses.push('movementType = ?')
+      periodParams.push(movementCategory)
+    }
+    if (voucherType) {
+      if (
+        voucherType === 'Thành phẩm sản xuất' &&
+        movementCategory !== 'in'
+      ) {
+        // The report label matches receipts directly and issue vouchers saved as "Sản xuất".
+        periodClauses.push('voucherType COLLATE NOCASE IN (?, ?)')
+        periodParams.push(voucherType, 'Sản xuất')
+      } else {
+        periodClauses.push('voucherType = ? COLLATE NOCASE')
+        periodParams.push(voucherType)
+      }
+    }
     const isAdmin = req.adminSession.role === 'admin'
     const selectedCode = cleanText(filters.warehouse)
     const assignedCodes = isAdmin ? [] : assignedWarehouseCodes(req.adminSession)
@@ -1028,19 +1429,47 @@ app.get('/api/inventory-report', (req, res) => {
     const reportCategoryTypes = {
       'Nguyên liệu': ['Nguyên liệu'],
       'Phụ liệu': ['Phụ liệu'],
+      'Thành phẩm': ['Thành phẩm', 'Sản phẩm'],
       'Sản phẩm': ['Sản phẩm', 'Thành phẩm'],
-      'Thiết bị': ['Thiết bị', 'Công cụ dụng cụ'],
+      'Thiết bị': ['Thiết bị'],
+      'Công cụ dụng cụ': ['Công cụ dụng cụ'],
       'Hàng mẫu': ['Hàng mẫu'],
     }
     const allowedTypes = reportCategoryTypes[filters.category]
+    const toolNamePatterns = ['%kim%', '%bút%', '%phấn%']
+    const toolNameMatch = `(${toolNamePatterns
+      .map(() => "LOWER(itemName) LIKE ? ESCAPE '\\' COLLATE NOCASE")
+      .join(' OR ')})`
     if (allowedTypes) {
-      clauses.push(`LOWER(itemType) IN (${allowedTypes.map(() => '?').join(',')})`)
-      params.push(...allowedTypes.map(value => value.toLocaleLowerCase('vi')))
+      if (filters.category === 'Công cụ dụng cụ') {
+        clauses.push(`(LOWER(itemType) IN (?) OR ${toolNameMatch})`)
+        params.push('công cụ dụng cụ', ...toolNamePatterns)
+      } else {
+        clauses.push(
+          `LOWER(itemType) IN (${allowedTypes.map(() => '?').join(',')}) AND NOT ${toolNameMatch}`
+        )
+        params.push(
+          ...allowedTypes.map(value => value.toLocaleLowerCase('vi')),
+          ...toolNamePatterns
+        )
+      }
+    }
+
+    if (fromDate) {
+      const periodFilter = periodClauses.length
+        ? ` AND ${periodClauses.join(' AND ')}`
+        : ''
+      clauses.push(`(movementDate < ? OR (movementDate >= ?${periodFilter}))`)
+      params.push(fromDate, fromDate, ...periodParams)
+    } else {
+      clauses.push(...periodClauses)
+      params.push(...periodParams)
     }
 
     const rows = db.prepare(`
       WITH movements AS (
         SELECT 'in' AS movementType, r.voucher_no AS voucherNo,
+          COALESCE(r.receipt_type, '') AS voucherType,
           r.voucher_date AS movementDate, r.contract_no AS contractNo,
           r.contract_date AS contractDate, r.description AS description,
           COALESCE(NULLIF(r.warehouse_code, ''), '') AS headerWarehouseCode,
@@ -1056,6 +1485,7 @@ app.get('/api/inventory-report', (req, res) => {
         LEFT JOIN delivery_people dp ON dp.id = r.delivery_person_id
         UNION ALL
         SELECT 'out' AS movementType, i.voucher_no AS voucherNo,
+          COALESCE(i.issue_type, '') AS voucherType,
           i.voucher_date AS movementDate, i.contract_no AS contractNo,
           i.contract_date AS contractDate, i.description AS description,
           COALESCE(NULLIF(i.warehouse_code, ''), '') AS headerWarehouseCode,
@@ -1068,6 +1498,36 @@ app.get('/api/inventory-report', (req, res) => {
           COALESCE(i.item_type, '') AS itemType, d.line_number AS lineNumber
         FROM inventory_issues i
         JOIN inventory_issue_details d ON d.issue_id = i.id
+        UNION ALL
+        SELECT 'out' AS movementType, t.voucher_no AS voucherNo,
+          'Điều chuyển kho' AS voucherType,
+          t.voucher_date AS movementDate, NULL AS contractNo,
+          NULL AS contractDate, COALESCE(t.description, '') AS description,
+          t.source_warehouse_code AS headerWarehouseCode,
+          t.source_warehouse_code AS warehouseCode,
+          d.item_code AS itemCode, COALESCE(d.item_name, '') AS itemName,
+          COALESCE(d.color, '') AS color,
+          t.destination_warehouse_code AS customerName,
+          COALESCE(d.unit, '') AS unit, d.quantity AS quantity,
+          COALESCE(d.amount, d.quantity * d.unit_price, 0) AS amount,
+          COALESCE(d.item_type, '') AS itemType, d.line_number AS lineNumber
+        FROM inventory_transfers t
+        JOIN inventory_transfer_details d ON d.transfer_id = t.id
+        UNION ALL
+        SELECT 'in' AS movementType, t.voucher_no AS voucherNo,
+          'Điều chuyển kho' AS voucherType,
+          t.voucher_date AS movementDate, NULL AS contractNo,
+          NULL AS contractDate, COALESCE(t.description, '') AS description,
+          t.destination_warehouse_code AS headerWarehouseCode,
+          t.destination_warehouse_code AS warehouseCode,
+          d.item_code AS itemCode, COALESCE(d.item_name, '') AS itemName,
+          COALESCE(d.color, '') AS color,
+          t.source_warehouse_code AS customerName,
+          COALESCE(d.unit, '') AS unit, d.quantity AS quantity,
+          COALESCE(d.amount, d.quantity * d.unit_price, 0) AS amount,
+          COALESCE(d.item_type, '') AS itemType, d.line_number AS lineNumber
+        FROM inventory_transfers t
+        JOIN inventory_transfer_details d ON d.transfer_id = t.id
       )
       SELECT * FROM movements
       ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
@@ -1096,13 +1556,18 @@ function nextDatabaseVoucherNumber(type, currentVoucherNo) {
 }
 
 app.get('/api/inventory-vouchers/next-number', (req, res) => {
-  const type = req.query.type === 'in' || req.query.type === 'out' ? req.query.type : null
-  if (!type) {
-    res.status(400).json({ success: false, error: 'Loại phiếu không hợp lệ.' })
-    return
+  try {
+    const type = req.query.type === 'in' || req.query.type === 'out' ? req.query.type : null
+    if (!type) {
+      res.status(400).json({ success: false, error: 'Loại phiếu không hợp lệ.' })
+      return
+    }
+    const voucherNo = nextDatabaseVoucherNumber(type, req.query.currentVoucherNo)
+    res.json({ success: true, data: { voucherNo } })
   }
-  const voucherNo = nextDatabaseVoucherNumber(type, req.query.currentVoucherNo)
-  res.json({ success: true, data: { voucherNo } })
+  catch (error) {
+    res.status(422).json({ success: false, error: error.message })
+  }
 })
 
 app.post('/api/inventory-vouchers/split', (req, res) => {

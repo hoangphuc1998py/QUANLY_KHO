@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Điều chuyển kho | QUẢN LÝ KHO IT-ANHUCO</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v=3" />
+    <link rel="stylesheet" href="/index.css" />
+    <link rel="stylesheet" href="/transfer.css" />
+  </head>
+  <body>
+    <main class="app-window" aria-label="Điều chuyển kho">
+      <header class="titlebar">
+        <span class="app-mark">◒</span><strong>Điều chuyển kho (Gia công)</strong>
+        <div class="window-controls"><button aria-label="Thu nhỏ">−</button><button aria-label="Phóng to">□</button><button class="close-window" aria-label="Đóng cửa sổ">×</button></div>
+      </header>
+      <div class="help"><span>❔</span><a href="#" id="transferHelpLink">Hướng dẫn - F1</a><time id="transferClock" class="live-clock"><span class="live-clock-time">--:--:--</span><span class="live-clock-date">--/--/----</span></time><span id="transferUserLabel" class="current-user">Tài khoản</span></div>
+      <nav class="page-switcher" aria-label="Trang nghiệp vụ">
+        <a class="page-choice transfer-nav-in" href="/" title="Phiếu nhập kho">Phiếu nhập kho</a>
+        <a class="page-choice transfer-nav-out" href="/?page=out" title="Phiếu xuất kho">Phiếu xuất kho</a>
+        <a class="page-choice transfer-nav-report" href="/?page=report" title="Nhập xuất tồn">Nhập xuất tồn</a>
+        <a class="page-choice active transfer-tab-hidden" href="/transfer" title="Điều chuyển kho">Điều chuyển kho</a>
+      </nav>
+      <nav class="tabs" aria-label="Thông tin chứng từ"><button class="tab active" type="button">Thông tin chung</button></nav>
+
+      <form id="transferForm" class="page transfer-form">
+        <div class="main-grid">
+          <div class="left-column">
+            <fieldset class="general-box transfer-general-box">
+              <legend>Thông tin điều chuyển</legend>
+              <label class="form-row"><span>Kho chuyển đi: <b>*</b></span><select id="sourceWarehouse" name="sourceWarehouseCode" required><option value="">Chọn kho đi</option></select></label>
+              <label class="form-row"><span>Kho nhận: <b>*</b></span><select id="destinationWarehouse" name="destinationWarehouseCode" required><option value="">Chọn kho nhận</option></select></label>
+              <label class="form-row"><span>Diễn giải:</span><input name="description" maxlength="500" placeholder="Ghi chú nội dung điều chuyển (nếu có)" /></label>
+            </fieldset>
+          </div>
+          <fieldset class="document-box transfer-document-box">
+            <legend>Thông tin chứng từ</legend>
+            <label class="doc-row"><span>Trạng thái:</span><strong class="new-status">Phiếu mới</strong></label>
+            <label class="doc-row"><span>Số chứng từ: <b>*</b></span><input id="transferVoucherNo" name="voucherNo" class="voucher" readonly required placeholder="Đang lấy số..." /></label>
+            <label class="doc-row"><span>Ngày chứng từ: <b>*</b></span><input id="transferDate" name="voucherDate" type="date" required /></label>
+          </fieldset>
+        </div>
+
+        <section class="items-section transfer-items-section">
+          <div class="grid-caption transfer-caption"><span>Danh sách hàng điều chuyển</span><button type="button" class="button secondary" id="addTransferRow">＋ Thêm dòng</button></div>
+          <div class="transfer-guidance">Chọn mặt hàng đã có trong database hoặc nhập trực tiếp. Đơn giá được dùng để giữ nguyên giá trị hàng trên báo cáo tồn.</div>
+          <div class="table-wrap"><table class="transfer-items"><thead><tr><th>STT</th><th>Mã hàng <b>*</b></th><th>Tên hàng</th><th>Loại hàng <b>*</b></th><th>Màu</th><th>ĐVT</th><th>Số lượng <b>*</b></th><th>Đơn giá <b>*</b></th><th>Thành tiền</th><th></th></tr></thead><tbody id="transferItems"></tbody></table></div>
+          <div class="item-picker-row"><button type="button" class="button secondary" id="openItemPicker">▦ Thêm mặt hàng</button><span>Chọn mặt hàng đã có trong database để tự điền thông tin.</span></div>
+          <p id="transferMessage" class="message" role="alert" aria-live="polite"></p>
+        </section>
+
+      <footer class="totals transfer-totals"><span>Tổng lượng:</span><strong id="transferFooterQuantity">0</strong><span>Tổng tiền hàng:</span><strong id="transferFooterAmount">0</strong></footer>
+        <footer class="actions transfer-actions"><button type="reset" class="secondary-action" id="resetTransfer">Làm mới</button><span class="spacer"></span><button type="submit" class="primary-save" id="saveTransfer">▣ Ghi phiếu điều chuyển</button></footer>
+      </form>
+
+      <section class="items-section transfer-list-section" aria-labelledby="transferListTitle">
+        <div class="grid-caption transfer-caption"><div><strong id="transferListTitle">Lịch sử điều chuyển</strong><small>Tối đa 200 phiếu gần nhất trong phạm vi kho được phân quyền.</small></div><div class="list-tools"><input id="transferSearch" type="search" placeholder="Tìm số phiếu, mã kho..." /><button type="button" class="button secondary" id="refreshTransfers">Làm mới</button></div></div>
+        <div class="table-wrap"><table class="transfer-list"><thead><tr><th>Ngày</th><th>Số chứng từ</th><th>Kho đi</th><th>Kho nhận</th><th>Số dòng</th><th>Tổng số lượng</th><th>Người lập</th><th></th></tr></thead><tbody id="transferRows"><tr><td colspan="8" class="empty-row">Đang tải dữ liệu...</td></tr></tbody></table></div>
+        <p id="listMessage" class="list-message" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+    <footer class="site-copyright">Copyright by IT - ANHUCO</footer>
+
+    <dialog id="transferDetailDialog" class="detail-dialog">
+      <header><div><h2 id="detailTitle">Chi tiết phiếu</h2><p id="detailSubtitle"></p></div><button type="button" id="closeTransferDetail" aria-label="Đóng">×</button></header>
+      <div class="table-wrap"><table class="transfer-items"><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Loại hàng</th><th>Màu</th><th>ĐVT</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead><tbody id="detailRows"></tbody></table></div>
+      <p id="detailDescription" class="detail-description"></p>
+    </dialog>
+    <dialog id="itemPickerDialog" class="detail-dialog item-picker-dialog">
+      <header><div><h2>Chọn mặt hàng từ database</h2><p id="itemPickerHint">Số lượng hiện tại được tính theo kho chuyển đi đã chọn, gồm phiếu nhập, phiếu xuất và các lần điều chuyển.</p></div><button type="button" id="closeItemPicker" aria-label="Đóng">×</button></header>
+      <div class="picker-toolbar"><input id="itemPickerSearch" type="search" placeholder="Tìm mã hàng, tên hàng, loại hàng..." /><button type="button" class="button secondary" id="refreshItemChoices">Làm mới danh sách</button></div>
+      <div class="table-wrap"><table class="picker-table"><thead><tr><th></th><th>Mã hàng</th><th>Tên hàng</th><th>Loại hàng</th><th>Màu</th><th>ĐVT</th><th>Số lượng hiện tại</th><th>Đơn giá gần nhất</th><th>Kho tham chiếu</th></tr></thead><tbody id="itemPickerRows"><tr><td colspan="9" class="empty-row">Đang tải mặt hàng...</td></tr></tbody></table></div>
+      <footer class="picker-footer"><span id="selectedItemCount">Đã chọn 0 mặt hàng</span><div><button type="button" class="button secondary" id="cancelItemPicker">Hủy</button><button type="button" class="button primary" id="addSelectedItems">Thêm đã chọn</button></div></footer>
+    </dialog>
+    <script src="/transfer.js"></script>
+    <div class="toast" id="transferToast" role="status"></div>
+  </body>
+</html>
