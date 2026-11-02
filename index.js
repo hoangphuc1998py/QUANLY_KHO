@@ -1164,9 +1164,19 @@ function renderInventoryReport(movements, fromDate, contractFilter, detailView) 
       reportNumber(endingAmount),
     ])
 
+    const productCustomsDeclarationNos = [
+      ...new Set(
+        product.periodMovements
+          .map(movement => String(movement.customsDeclarationNo || '').trim())
+          .filter(Boolean)
+      ),
+    ]
     addReportRow(
       detailBody,
-      [{ value: `Mã kho: ${product.warehouseCode || '(chưa có kho)'}　Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}　Màu: ${product.color || ''}`, colSpan: 10 }],
+      [{
+        value: `Số tờ khai: ${productCustomsDeclarationNos.length ? productCustomsDeclarationNos.join(', ') : 'Không có'}　Mã kho: ${product.warehouseCode || '(chưa có kho)'}　Mã SP: ${product.itemCode}　Tên hàng: ${product.itemName}　Màu: ${product.color || ''}`,
+        colSpan: 10,
+      }],
       'product-row'
     )
     addReportRow(
