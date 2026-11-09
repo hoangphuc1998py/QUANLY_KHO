@@ -1248,22 +1248,26 @@ th:nth-child(9) {
     width: 110px !important;
   }
   .inventory-table .inventory-ledger thead tr:first-child th:nth-child(4) {
-    width: 100px !important;
+    width: 95px !important;
   }
   .inventory-table .inventory-ledger thead tr:first-child th:nth-child(5) {
-    width: 65px !important;
+    width: 120px !important;
   }
   .inventory-table .inventory-ledger thead tr:first-child th:nth-child(6) {
-    width: 65px !important;
+    width: 55px !important;
   }
-  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(n + 7) {
-    width: 126px !important;
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(7) {
+    width: 40px !important;
   }
-  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(5),
-  .inventory-table .inventory-ledger tbody td:nth-child(5) {
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(n + 8) {
+    width: 115px !important;
+  }
+  .inventory-table .inventory-ledger thead tr:first-child th:nth-child(6),
+  .inventory-table .inventory-ledger tbody td:nth-child(6),
+  .inventory-table .inventory-ledger tbody td:nth-child(7) {
     text-align: center !important;
   }
-  .inventory-table .inventory-ledger td:nth-child(n + 5) {
+  .inventory-table .inventory-ledger td:nth-child(n + 8) {
     white-space: nowrap;
     font-size: 7.5pt;
   }
@@ -1688,7 +1692,7 @@ th:nth-child(9) {
   display: none;
 }
 .inventory-ledger {
-  min-width: 1480px;
+  min-width: 1560px;
 }
 .inventory-ledger th:nth-child(1) {
   width: 42px;
@@ -1700,19 +1704,30 @@ th:nth-child(9) {
   width: 220px;
 }
 .inventory-ledger th:nth-child(4) {
+  width: 180px;
+}
+.inventory-ledger th:nth-child(5) {
+  width: 150px;
+}
+.inventory-ledger th:nth-child(6) {
+  width: 90px;
+}
+.inventory-ledger th:nth-child(7) {
   width: 48px;
 }
-.inventory-ledger th:nth-child(n + 5) {
+.inventory-ledger th:nth-child(n + 8) {
   width: 88px;
 }
-.inventory-ledger td:nth-child(n + 5) {
+.inventory-ledger td:nth-child(n + 8) {
   text-align: right;
 }
-.inventory-ledger td:nth-child(-n + 4) {
+.inventory-ledger td:nth-child(-n + 7) {
   text-align: left;
 }
 .inventory-ledger td:first-child,
-.inventory-ledger td:nth-child(4) {
+.inventory-ledger td:nth-child(4),
+.inventory-ledger td:nth-child(6),
+.inventory-ledger td:nth-child(7) {
   text-align: center;
 }
 .inventory-ledger .subtotal-row td:first-child {
@@ -1909,10 +1924,10 @@ th:nth-child(9) {
 }
 .stock-ledger.inventory-ledger th:nth-child(5),
 .stock-ledger.inventory-ledger td:nth-child(5) {
-  width: 65px !important;
-  min-width: 65px !important;
-  max-width: 65px !important;
-  text-align: center !important;
+  width: 150px !important;
+  min-width: 150px !important;
+  max-width: 150px !important;
+  text-align: left !important;
 }
 .stock-ledger.inventory-ledger thead tr:nth-child(2) th {
   width: 42px !important;
@@ -1923,7 +1938,7 @@ th:nth-child(9) {
   line-height: 1.15;
   padding: 3px 2px;
 }
-.stock-ledger.inventory-ledger thead tr:first-child th:nth-child(n + 7) {
+.stock-ledger.inventory-ledger thead tr:first-child th:nth-child(n + 8) {
   width: 126px !important;
 }
 .inventory-ledger td.long-report-cell {

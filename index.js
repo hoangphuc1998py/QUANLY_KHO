@@ -1035,6 +1035,7 @@ function renderInventoryReport(movements, fromDate, contractFilter, detailView) 
         warehouseCode,
         itemCode,
         itemName: movement.itemName || '',
+        customsDeclarationNos: new Set(),
         color,
         unit: movement.unit || '',
         openingQty: 0,
@@ -1049,6 +1050,9 @@ function renderInventoryReport(movements, fromDate, contractFilter, detailView) 
     }
     const product = products.get(productKey)
     if (!product.itemName && movement.itemName) product.itemName = movement.itemName
+    if (movement.customsDeclarationNo) {
+      product.customsDeclarationNos.add(String(movement.customsDeclarationNo).trim())
+    }
     if (!product.color && color) product.color = color
     if (!product.unit && movement.unit) product.unit = movement.unit
     const quantity = Number(movement.quantity) || 0
@@ -1089,7 +1093,7 @@ function renderInventoryReport(movements, fromDate, contractFilter, detailView) 
   detailBody.replaceChildren()
 
   if (!productRows.length) {
-    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 18 }])
+    addReportRow(summaryBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 19 }])
     addReportRow(detailBody, [{ value: 'Không có dữ liệu phù hợp với điều kiện lọc.', colSpan: 10 }])
     inventoryReportPage = 1
     updateInventoryReportPagination()
@@ -1135,11 +1139,14 @@ function renderInventoryReport(movements, fromDate, contractFilter, detailView) 
     totals.endingQty += endingQty
     totals.endingAmount += endingAmount
 
+    const customsDeclarationText = [...product.customsDeclarationNos].join(', ') || 'Không có tờ khai'
+
     addReportRow(summaryBody, [
       index + 1,
       product.warehouseCode,
       product.itemCode,
       product.itemName,
+      customsDeclarationText,
       product.color,
       product.unit,
       reportNumber(product.openingQty),
@@ -1239,7 +1246,7 @@ function renderInventoryReport(movements, fromDate, contractFilter, detailView) 
   addReportRow(
     summaryBody,
     [
-      { value: 'Cộng', colSpan: 6 },
+      { value: 'Cộng', colSpan: 7 },
       reportNumber(totals.openingQty),
       '',
       totals.hasOpeningBalance ? reportNumber(totals.openingAmount) : '',
