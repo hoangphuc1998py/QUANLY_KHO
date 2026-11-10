@@ -33,6 +33,10 @@ db.pragma('journal_mode = WAL')
 db.pragma('busy_timeout = 10000')
 db.pragma('foreign_keys = ON')
 
+const warehouseSiteColumns = db.prepare('PRAGMA table_info(warehouse_sites)').all()
+if (!warehouseSiteColumns.some(column => column.name === 'address'))
+  db.exec("ALTER TABLE warehouse_sites ADD COLUMN address TEXT NOT NULL DEFAULT ''")
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS delivery_people (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +49,8 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS warehouse_sites (
     site_code TEXT PRIMARY KEY COLLATE NOCASE,
-    linked_stores TEXT NOT NULL DEFAULT '[]'
+    linked_stores TEXT NOT NULL DEFAULT '[]',
+        address TEXT NOT NULL DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS inventory_receipts (
@@ -211,20 +216,20 @@ function saveLoginHistory(req, { username, role, result }) {
 }
 
 const WAREHOUSE_SITE_DATA = [
-  ['KHO TONG CONG TY', ['KHO TONG CONG TY']],
-  ['KHO AN HUNG', ['KHO AN HUNG NPL', 'KHO AN HUNG BTP CAT', 'KHO AN HUNG BTP MAY', 'KHO AN HUNG TP']],
-  ['KHO AN THINH', ['KHO AN THINH NPL', 'KHO AN THINH BTP CAT', 'KHO AN THINH BTP MAY', 'KHO AN THINH TP']],
-  ['KHO AN PHAT', ['KHO AN PHAT NPL', 'KHO AN PHAT BTP CAT', 'KHO AN PHAT BTP MAY', 'KHO AN PHAT TP']],
-  ['KHO AN PHU', ['KHO AN PHU NPL', 'KHO AN PHU BTP CAT', 'KHO AN PHU BTP MAY', 'KHO AN PHU TP']],
-  ['KHO VESTON', ['KHO VESTON NPL', 'KHO VESTON BTP CAT', 'KHO VESTON BTP MAY', 'KHO VESTON TP']],
+  ['KHO TONG CONG TY', ['KHO TONG CONG TY'], 'Thôn Đông Phước, Phường Tuy Hòa, Tỉnh Đắk Lắk, Việt Nam'],
+  ['KHO AN HUNG', ['KHO AN HUNG NPL', 'KHO AN HUNG BTP CAT', 'KHO AN HUNG BTP MAY', 'KHO AN HUNG TP'], '231 Nguyễn Tất Thành, P.Tuy Hòa, tỉnh Đắk Lắk'],
+  ['KHO AN THINH', ['KHO AN THINH NPL', 'KHO AN THINH BTP CAT', 'KHO AN THINH BTP MAY', 'KHO AN THINH TP'], 'Thôn Đông Phước, Phường Tuy Hòa, Tỉnh Đắk Lắk, Việt Nam'],
+  ['KHO AN PHAT', ['KHO AN PHAT NPL', 'KHO AN PHAT BTP CAT', 'KHO AN PHAT BTP MAY', 'KHO AN PHAT TP'], 'Thôn Mỹ Thạnh Trung 2, Xã Tây Hòa, Tỉnh Đắk Lắk, Việt Nam'],
+  ['KHO AN PHU', ['KHO AN PHU NPL', 'KHO AN PHU BTP CAT', 'KHO AN PHU BTP MAY', 'KHO AN PHU TP'], 'Đường Thăng Long, Khu phố 3, Phường Phú Yên, Tỉnh Đắk Lắk, Việt Nam'],
+  ['KHO VESTON', ['KHO VESTON NPL', 'KHO VESTON BTP CAT', 'KHO VESTON BTP MAY', 'KHO VESTON TP'], 'Khu công nghiệp Hòa Hiệp (Giai đoạn 2), Phường Hòa Hiệp, Tỉnh Đắk Lắk, Việt Nam'],
 ]
 const upsertWarehouseSite = db.prepare(`
-  INSERT INTO warehouse_sites (site_code, linked_stores) VALUES (?, ?)
-  ON CONFLICT(site_code) DO UPDATE SET linked_stores = excluded.linked_stores
+  INSERT INTO warehouse_sites (site_code, linked_stores, address) VALUES (?, ?, ?)
+  ON CONFLICT(site_code) DO UPDATE SET linked_stores = excluded.linked_stores, address = excluded.address
 `)
 const seedWarehouseSites = db.transaction(() => {
-  for (const [siteCode, linkedStores] of WAREHOUSE_SITE_DATA)
-    upsertWarehouseSite.run(siteCode, JSON.stringify(linkedStores))
+  for (const [siteCode, linkedStores, address] of WAREHOUSE_SITE_DATA)
+    upsertWarehouseSite.run(siteCode, JSON.stringify(linkedStores), address)
 })
 const missingWarehouseSite = WAREHOUSE_SITE_DATA.some(([siteCode]) =>
   !db.prepare('SELECT 1 FROM warehouse_sites WHERE site_code = ? COLLATE NOCASE').get(siteCode)
@@ -708,7 +713,7 @@ app.get('/api/delivery-people', (req, res) => {
 })
 
 app.get('/api/warehouse-sites', (_req, res) => {
-  const sites = db.prepare('SELECT site_code AS siteCode, linked_stores AS linkedStores FROM warehouse_sites ORDER BY rowid').all()
+  const sites = db.prepare('SELECT site_code AS siteCode, linked_stores AS linkedStores, address FROM warehouse_sites ORDER BY rowid').all()
     .map(site => ({ ...site, linkedStores: JSON.parse(site.linkedStores) }))
   res.json({ success: true, data: sites })
 })

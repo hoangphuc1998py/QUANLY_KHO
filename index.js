@@ -1691,7 +1691,8 @@ function prepareVoucherPrint() {
   setPrintText('voucherPrintDebit', distinctAccounts(accountColumn.debit))
   setPrintText('voucherPrintCredit', distinctAccounts(accountColumn.credit))
   setPrintText('voucherPrintPartner', document.querySelector('#senderName').value)
-  setPrintText('voucherPrintAddress', document.querySelector('#senderAddress').value)
+  const printSite = warehouseSites.find(site => site.siteCode.toLocaleUpperCase('vi') === warehousePicker.value.toLocaleUpperCase('vi'))
+  setPrintText('voucherPrintAddress', printSite?.address || '')
   const contractNo = document.querySelector('#contractNo').value.trim()
   const contractDate = document.querySelector('#contractDate').value
   setPrintText('voucherPrintContract', [contractNo, contractDate && printVoucherDate(contractDate)].filter(Boolean).join(' - '))
@@ -1827,6 +1828,7 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     : '(Ban hành theo TT số: 99/2025/TT-BTC) · ngày 27/10/2025 của Bộ trưởng BTC'
   const partnerLabel = isIssue ? 'Họ tên người nhận hàng:' : 'Họ tên người giao hàng:'
   const warehouseLabel = isIssue ? 'Xuất tại kho:' : 'Nhập tại kho:'
+  const siteAddress = warehouseSites.find(site => site.siteCode.toLocaleUpperCase('vi') === document.querySelector('#warehousePicker').value.toLocaleUpperCase('vi'))?.address || ''
   const excelColumnWidths = [60, 290, 38, 55, 83, 83, 105, 155]
   const signatureWidth = excelColumnWidths.reduce((sum, width) => sum + width, 0)
   const signatureBaseWidth = Math.floor(signatureWidth / 6)
@@ -1851,7 +1853,7 @@ document.querySelector('#exportVoucherExcel').addEventListener('click', () => {
     `<tr>${cell(`Địa chỉ: ${value('senderAddress')}`, { colSpan: 8, className: 'left' })}</tr>`,
      `<tr>${cell(`Theo chứng từ: ${customsText ? `Tờ khai: ${customsText}` : ''}${invoiceText ? ` · Hóa đơn: ${invoiceText}` : ''}${contractText ? ` · Hợp đồng: ${contractText}` : ''}`, { colSpan: 8, className: 'left' })}</tr>`,
     `<tr>${cell(`Lý do ${isIssue ? 'xuất' : 'nhập'} kho: ${value('receiptDescription')} · Người vận chuyển: ${value('transporterName')}`, { colSpan: 8, className: 'left' })}</tr>`,
-    `<tr>${cell(`${warehouseLabel} ${warehouse}`, { colSpan: 4, className: 'left' })}${cell(`Địa điểm: ${value('senderAddress')}`, { colSpan: 4, className: 'left' })}</tr>`,
+    `<tr>${cell(`${warehouseLabel} ${warehouse}`, { colSpan: 4, className: 'left' })}${cell(`Địa điểm: ${siteAddress}`, { colSpan: 4, className: 'left' })}</tr>`,
     `<tr class="table-head">${cell('STT', { tag: 'th', rowSpan: 2 })}${cell('Tên nhãn hiệu, quy cách phẩm chất vật tư, dụng cụ, sản phẩm, hàng hóa', { tag: 'th', rowSpan: 2 })}${cell('Mã số', { tag: 'th', rowSpan: 2 })}${cell('Đơn vị tính', { tag: 'th', rowSpan: 2 })}${cell('Số lượng', { tag: 'th', colSpan: 2 })}${cell(`Đơn giá (${currency})`, { tag: 'th', rowSpan: 2 })}${cell(`Thành tiền (${currency})`, { tag: 'th', rowSpan: 2 })}</tr>`,
     `<tr class="table-head">${cell('Yêu cầu', { tag: 'th' })}${cell(isIssue ? 'Thực xuất' : 'Thực nhập', { tag: 'th' })}</tr>`,
     `<tr class="letters">${['A', 'B', 'C', 'D', '1', '2', '3', '4'].map(text => cell(text, { tag: 'th' })).join('')}</tr>`,
