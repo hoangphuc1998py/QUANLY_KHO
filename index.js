@@ -1366,11 +1366,7 @@ async function showInventoryReport(detail = false) {
   document.querySelector('#reportResults').classList.remove('hidden')
   document.querySelector('#stockReportPage').classList.add('is-viewing-report')
   document.querySelector('#inventorySearch').value = ''
-  activeReportTable()
-    .querySelectorAll('tbody tr')
-    .forEach(row => {
-      row.hidden = false
-    })
+  updateInventoryReportPagination()
   return true
 }
 
