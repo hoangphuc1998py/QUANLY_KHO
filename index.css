@@ -2491,6 +2491,9 @@ th:nth-child(9) {
     background-position 500ms ease,
     box-shadow 180ms ease;
 }
+.navbar-copyright {
+  display: none;
+}
 .site-copyright::after {
   content: '';
   position: absolute;
@@ -3067,6 +3070,20 @@ body:not(.printing-voucher) .page-switcher {
   background: linear-gradient(180deg, #13c3c7, #10aeb9 70%, #139eae);
   box-shadow: 0 12px 28px rgb(18 144 156 / 21%);
 }
+body:not(.printing-voucher) .navbar-copyright {
+  display: block;
+  position: absolute;
+  right: 12px;
+  bottom: 14px;
+  left: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(255 255 255 / 24%);
+  color: rgb(255 255 255 / 82%);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-align: center;
+}
 body:not(.printing-voucher) .page-switcher::before {
   content: '◉  IT-ANHUCO';
   position: absolute;
@@ -3214,6 +3231,7 @@ body:not(.printing-voucher) .actions button {
     padding: 5px;
     border-radius: 14px;
   }
+  body:not(.printing-voucher) .navbar-copyright { display: none; }
   body:not(.printing-voucher) .page-switcher::before { display: none; }
   body:not(.printing-voucher) .page-choice {
     width: auto;
