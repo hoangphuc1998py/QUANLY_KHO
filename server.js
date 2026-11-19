@@ -939,7 +939,8 @@ app.get('/api/inventory-receipts', (req, res) => {
       d.item_code AS itemCode, d.item_name AS itemName,
       d.ecus_item_code AS ecusItemCode, d.warehouse_code AS detailWarehouseCode,
       d.debit_account AS debitAccount, d.credit_account AS creditAccount,
-      d.unit, d.color, d.quantity, d.unit_price AS unitPrice
+      d.unit, d.color, d.quantity, d.unit_price AS unitPrice,
+      COALESCE(NULLIF(d.amount, 0), d.quantity * d.unit_price, 0) AS amount
       FROM inventory_receipts r
     LEFT JOIN inventory_receipt_details d ON d.receipt_id = r.id ${warehouseJoin}
     WHERE r.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility}
@@ -951,7 +952,7 @@ app.get('/api/inventory-receipts', (req, res) => {
       itemCode: detail.itemCode, itemName: detail.itemName,
       ecusItemCode: detail.ecusItemCode, warehouseCode: detail.detailWarehouseCode,
       debitAccount: detail.debitAccount, creditAccount: detail.creditAccount,
-      unit: detail.unit, color: detail.color, quantity: detail.quantity, unitPrice: detail.unitPrice,
+      unit: detail.unit, color: detail.color, quantity: detail.quantity, unitPrice: detail.unitPrice, amount: detail.amount,
     })),
   }))
   for (const receipt of receipts) {
@@ -965,6 +966,7 @@ app.get('/api/inventory-receipts', (req, res) => {
     delete receipt.color
     delete receipt.quantity
     delete receipt.unitPrice
+    delete receipt.amount
   }
   res.json({ success: true, data: receipts })
 }
@@ -1073,12 +1075,12 @@ app.get('/api/inventory-issues', (req, res) => {
     ? ''
     : `AND ${warehouseMatch}`
     const warehouseVisibility = isAdmin ? '' : 'AND d.issue_id IS NOT NULL'
-    const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.color,d.quantity,d.unit_price AS unitPrice FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
+    const rows = db.prepare(`SELECT i.id,i.voucher_no AS voucherNo,i.voucher_date AS voucherDate,i.receiver_name AS receiverName,i.address,i.transporter_name AS transporterName,i.description,i.warehouse_code AS warehouseCode,i.customs_declaration_no AS customsDeclarationNo,i.customs_declaration_date AS customsDeclarationDate,i.contract_no AS contractNo,i.contract_date AS contractDate,i.invoice_no AS invoiceNo,i.invoice_date AS invoiceDate,i.original_voucher_no AS originalVoucherNo,i.original_voucher_date AS originalVoucherDate,i.exchange_rate AS exchangeRate,i.currency,i.issue_type AS receiptType,i.item_type AS itemType,i.is_self_supplied AS isSelfSupplied,i.status,d.item_code AS itemCode,d.item_name AS itemName,d.ecus_item_code AS ecusItemCode,d.warehouse_code AS detailWarehouseCode,d.debit_account AS debitAccount,d.credit_account AS creditAccount,d.unit,d.color,d.quantity,d.unit_price AS unitPrice,COALESCE(NULLIF(d.amount,0),d.quantity*d.unit_price,0) AS amount FROM inventory_issues i LEFT JOIN inventory_issue_details d ON d.issue_id=i.id ${warehouseJoin} WHERE i.voucher_no LIKE ? ESCAPE '\\' COLLATE NOCASE ${warehouseVisibility} ORDER BY i.voucher_no,d.line_number`).all(...warehouseCodes, `%${query}%`)
     const records = [...new Map(rows.map(row => [row.id,row])).values()].map(row => ({
       ...row,
-      items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,color:detail.color,quantity:detail.quantity,unitPrice:detail.unitPrice })),
+      items: rows.filter(detail => detail.id === row.id && detail.itemCode).map(detail => ({ itemCode:detail.itemCode,itemName:detail.itemName,ecusItemCode:detail.ecusItemCode,warehouseCode:detail.detailWarehouseCode,debitAccount:detail.debitAccount,creditAccount:detail.creditAccount,unit:detail.unit,color:detail.color,quantity:detail.quantity,unitPrice:detail.unitPrice,amount:detail.amount })),
     }))
-    for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','color','quantity','unitPrice'].forEach(key => delete record[key])
+    for (const record of records) ['detailWarehouseCode','itemCode','itemName','ecusItemCode','debitAccount','creditAccount','unit','color','quantity','unitPrice','amount'].forEach(key => delete record[key])
       res.json({ success:true,data:records })
   }
   catch (error) {

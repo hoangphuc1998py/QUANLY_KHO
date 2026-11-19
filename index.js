@@ -77,7 +77,7 @@ function rows() {
 function parseTableNumber(value) {
   const text = String(value ?? '')
     .trim()
-    .replaceAll(' ', '')
+    .replace(/[\s\u00a0\u202f]/g, '')
   if (!text) return 0
   if (text.includes(',') && text.includes('.')) {
     return (
@@ -89,19 +89,20 @@ function parseTableNumber(value) {
     )
   }
   if (text.includes(',')) {
-    return (
-      Number(
-        /^[-+]?\d{1,3}(,\d{3})+$/.test(text)
-          ? text.replaceAll(',', '')
-          : text.replace(',', '.')
-      ) || 0
-    )
+// A single comma is the decimal separator used by Excel in vi-VN.
+    // Repeated comma groups such as 1,234,567 are thousands separators.
+    const normalized = /^[-+]?\d{1,3}(,\d{3}){2,}$/.test(text)
+      ? text.replaceAll(',', '')
+      : text.replace(',', '.')
+    return Number(normalized) || 0
   }
-  return (
-    Number(
-      /^[-+]?\d{1,3}(\.\d{3})+$/.test(text) ? text.replaceAll('.', '') : text
-    ) || 0
-  )
+
+    // A single period is decimal unless the value clearly uses grouped thousands.
+  const normalized = /^[-+]?\d{1,3}(\.\d{3}){2,}$/.test(text)
+    ? text.replaceAll('.', '')
+    : text
+  return Number(normalized) || 0
+  
 }
 
 function recalculate() {
@@ -396,7 +397,7 @@ document
         const matrix = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
           header: 1,
           defval: '',
-          raw: false,
+          raw: true,
           blankrows: false,
         })
         try {
@@ -2139,6 +2140,13 @@ function loadVoucher(record) {
   notify(`Đã mở chứng từ ${record.number}.`)
 }
 
+function storedVoucherUnitPrice(item) {
+  const unitPrice = Number(item.unitPrice) || 0
+  const quantity = Number(item.quantity) || 0
+  const amount = Number(item.amount) || 0
+  return unitPrice || (quantity ? amount / quantity : 0)
+}
+
 function loadReceiptVoucher(record) {
   const set = (id, value) => {
     const control = document.getElementById(id)
@@ -2192,7 +2200,7 @@ function loadReceiptVoucher(record) {
       item.creditAccount,
       item.unit,
       String(item.quantity ?? ''),
-      String(item.unitPrice ?? ''),
+      String(storedVoucherUnitPrice(item)),
       '',
     ]
     values.forEach((value, index) => {
@@ -2380,7 +2388,7 @@ function loadIssueVoucher(record) {
       item.debitAccount,
       item.creditAccount,
       String(item.quantity ?? ''),
-      String(item.unitPrice ?? ''),
+      String(storedVoucherUnitPrice(item)),
       '',
     ]
     values.forEach((value, index) => {
